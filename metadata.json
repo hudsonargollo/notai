@@ -1,8 +1,8 @@
 {
-  "name": "not.AÍ",
-  "description": "AI-powered expense tracker. Snap a receipt, let Gemini extract the details, and track your spending instantly.",
   "requestFramePermissions": [
     "camera",
     "microphone"
-  ]
+  ],
+  "name": "",
+  "description": ""
 }

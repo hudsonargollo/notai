@@ -1,10 +1,8 @@
-
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
 import { AIReceiptResponse, Expense, Budget, ChatMessage } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Helper to compress image
 const compressImage = async (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -61,23 +59,11 @@ const financialTools: FunctionDeclaration[] = [
       properties: {
         merchant: { type: Type.STRING, description: 'Where the money was spent.' },
         amount: { type: Type.NUMBER, description: 'Total value in BRL (R$).' },
-        category: { type: Type.STRING, description: 'Category of spending (e.g., Alimentação, Transporte, Lazer).' },
-        date: { type: Type.STRING, description: 'ISO Date YYYY-MM-DD. Defaults to today.' },
-        note: { type: Type.STRING, description: 'A brief description of what was purchased.' }
+        category: { type: Type.STRING, description: 'Category of spending.' },
+        date: { type: Type.STRING, description: 'ISO Date YYYY-MM-DD.' },
+        note: { type: Type.STRING, description: 'A brief description.' }
       },
       required: ['merchant', 'amount', 'category']
-    }
-  },
-  {
-    name: 'set_budget',
-    parameters: {
-      type: Type.OBJECT,
-      description: 'Updates a monthly spending limit for a specific category.',
-      properties: {
-        category: { type: Type.STRING, description: 'The category to set a limit for.' },
-        amount: { type: Type.NUMBER, description: 'The limit amount in BRL.' }
-      },
-      required: ['category', 'amount']
     }
   }
 ];
@@ -88,11 +74,11 @@ export const parseReceiptImage = async (file: File, activeCategories: string[], 
   const targetLanguage = language === 'pt' ? 'Portuguese (Brazil)' : 'English';
 
   const systemPrompt = `
-    You are "Neo", a sophisticated yet friendly financial assistant.
-    Task: Extract data from the receipt image.
-    Currency: ALWAYS BRL (R$).
-    Language: ${targetLanguage}.
-    Tone: Friendly, concise, helpful.
+    Você é o "Neo", um assistente financeiro ultra-inteligente e descontraído.
+    Tarefa: Extrair dados da imagem do recibo.
+    Moeda: SEMPRE BRL (R$).
+    Idioma: ${targetLanguage}.
+    Tom: Conversacional, prático, estilo "coach financeiro amigo". Use termos como "Opa", "Bora", "Show".
   `;
 
   try {
@@ -129,31 +115,26 @@ export const chatWithFinancialAdvisor = async (
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
   const monthlyExpenses = expenses.filter(e => e.date >= startOfMonth);
   const totalSpentMonth = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
-  
   const targetLang = language === 'pt' ? 'Portuguese (Brazilian)' : 'English';
   
   const systemPrompt = `
-    You are "Neo", the high-tech, ultra-cool financial core of the not.AÍ app.
+    Você é o "Neo", o núcleo de inteligência financeira descontraído do not.AÍ.
     
-    PERSONALITY:
-    - Persona: Friendly, relaxed, slightly informal but highly competent "fintech bro".
-    - Vibe: Speak like a helpful friend who's a pro at investing and saving.
-    - Style: Use conversational filler words (e.g., "Opa", "Cara", "Beleza", "Olha só") naturally.
-    - Pacing: Be concise. Don't lecture. Give direct answers with a helpful twist.
+    PERSONALIDADE E TOM:
+    - Persona: Um "Fintech Bro" brasileiro, muito gente fina e direto ao ponto.
+    - Estilo: Use gírias corporativas leves e fillers naturais: "Cara", "Olha só", "Beleza!", "Tudo certo", "Manda ver".
+    - Pacing: Frases curtas, ritmo de áudio de WhatsApp. Evite ser robótico.
     
-    CONTEXT:
-    - Currency: R$ (BRL).
-    - Current Month Spent: R$ ${totalSpentMonth.toFixed(2)}
-    - Budgets: ${JSON.stringify(budgets)}
-    - Categories: ${availableCategories.join(', ')}
+    CONTEXTO ATUAL:
+    - Moeda: R$ (BRL).
+    - Gasto no Mês: R$ ${totalSpentMonth.toFixed(2)}
+    - Categorias Disponíveis: ${availableCategories.join(', ')}
 
-    ABILITIES:
-    1. If user says "Gastei [valor] no [lugar]", call 'create_expense'.
-    2. If user wants to change a limit, call 'set_budget'.
-    3. If asked to "Analisar", generate a brief but insightful report on their spending habits and read it back automatically.
-    4. If asked for "Dicas", provide 3 specific, actionable ways to save based on their biggest spending categories.
-
-    Language: ALWAYS respond in ${targetLang}. Keep the pacing natural for text-to-speech.
+    INSTRUÇÕES:
+    1. Para registrar gastos, chame 'create_expense'. Seja empolgado ao registrar.
+    2. Nas análises, dê toques reais de economia, mas sem sermão.
+    3. Mantenha as respostas curtas (máximo 150 caracteres) para que o áudio flua bem.
+    4. RESPONDA EM ${targetLang}.
   `;
 
   try {
@@ -166,7 +147,7 @@ export const chatWithFinancialAdvisor = async (
       config: {
         systemInstruction: systemPrompt,
         tools: [{ functionDeclarations: financialTools }],
-        temperature: 0.9, // Higher temperature for more natural informal speech
+        temperature: 0.9 // High temperature for more natural speech
       }
     });
 
@@ -178,11 +159,11 @@ export const chatWithFinancialAdvisor = async (
 };
 
 export const generateNeuralTTS = async (text: string, language: string): Promise<string | undefined> => {
-  const voice = language === 'pt' ? 'Fenrir' : 'Zephyr'; 
+  // 'Kore' is a good choice for a realistic male voice in Gemini 2.5 TTS
+  const voice = language === 'pt' ? 'Kore' : 'Zephyr'; 
   
   try {
-    // Adding pacing instructions to the generation prompt for better results
-    const synthesisPrompt = `Speak this as a cool, friendly male AI financial assistant. Use natural human pacing, slight pauses for commas, and a conversational tone: "${text}"`;
+    const synthesisPrompt = `Leia isso de forma natural, amigável e descontraída, como um homem brasileiro jovem e inteligente: "${text}"`;
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: synthesisPrompt }] }],
