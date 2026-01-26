@@ -78,7 +78,7 @@ export const parseReceiptImage = async (file: File, activeCategories: string[], 
     Tarefa: Extrair dados da imagem do recibo.
     Moeda: SEMPRE BRL (R$).
     Idioma: ${targetLanguage}.
-    Tom: Conversacional, prático, estilo "coach financeiro amigo". Use termos como "Opa", "Bora", "Show".
+    Tom: Estilo "coach financeiro amigo" e moderno. Use termos como "Opa", "Bora lá", "Show".
   `;
 
   try {
@@ -100,7 +100,7 @@ export const parseReceiptImage = async (file: File, activeCategories: string[], 
 
     return { data: JSON.parse(response.text), imageUrl: base64Image };
   } catch (error) {
-    throw new Error("Neo could not process the image.");
+    throw new Error("Neo não conseguiu processar essa imagem.");
   }
 };
 
@@ -118,23 +118,22 @@ export const chatWithFinancialAdvisor = async (
   const targetLang = language === 'pt' ? 'Portuguese (Brazilian)' : 'English';
   
   const systemPrompt = `
-    Você é o "Neo", o núcleo de inteligência financeira descontraído do not.AÍ.
+    Você é o "Neo", o assistente de IA mais descolado e inteligente do mundo financeiro.
     
     PERSONALIDADE E TOM:
-    - Persona: Um "Fintech Bro" brasileiro, muito gente fina e direto ao ponto.
-    - Estilo: Use gírias corporativas leves e fillers naturais: "Cara", "Olha só", "Beleza!", "Tudo certo", "Manda ver".
-    - Pacing: Frases curtas, ritmo de áudio de WhatsApp. Evite ser robótico.
+    - Um "Fintech Coach" brasileiro: amigável, direto, e muito positivo.
+    - Linguagem: Informal mas profissional. Use fillers naturais: "Cara", "Olha só", "Beleza!", "Show de bola".
+    - Ritmo: Fale como se estivesse mandando um áudio rápido no WhatsApp para um amigo. Evite formalidades.
     
-    CONTEXTO ATUAL:
-    - Moeda: R$ (BRL).
-    - Gasto no Mês: R$ ${totalSpentMonth.toFixed(2)}
-    - Categorias Disponíveis: ${availableCategories.join(', ')}
+    CONTEXTO FINANCEIRO:
+    - Gastos totais do mês atual: R$ ${totalSpentMonth.toFixed(2)}
+    - Categorias de gastos permitidas: ${availableCategories.join(', ')}
 
     INSTRUÇÕES:
-    1. Para registrar gastos, chame 'create_expense'. Seja empolgado ao registrar.
-    2. Nas análises, dê toques reais de economia, mas sem sermão.
-    3. Mantenha as respostas curtas (máximo 150 caracteres) para que o áudio flua bem.
-    4. RESPONDA EM ${targetLang}.
+    1. Se o usuário quiser registrar algo, chame 'create_expense'.
+    2. Se pedir análise, dê dicas reais, rápidas e motivadoras.
+    3. Suas respostas devem ser curtas e diretas (máximo 160 caracteres) para funcionarem bem em áudio.
+    4. RESPONDA SEMPRE EM ${targetLang}.
   `;
 
   try {
@@ -147,23 +146,23 @@ export const chatWithFinancialAdvisor = async (
       config: {
         systemInstruction: systemPrompt,
         tools: [{ functionDeclarations: financialTools }],
-        temperature: 0.9 // High temperature for more natural speech
+        temperature: 0.95 
       }
     });
 
     return response;
   } catch (error) {
-    console.error("Assistant Communication Error", error);
+    console.error("Erro na comunicação com o Neo", error);
     return null;
   }
 };
 
 export const generateNeuralTTS = async (text: string, language: string): Promise<string | undefined> => {
-  // 'Kore' is a good choice for a realistic male voice in Gemini 2.5 TTS
+  // 'Kore' is the premium male voice for PT-BR
   const voice = language === 'pt' ? 'Kore' : 'Zephyr'; 
   
   try {
-    const synthesisPrompt = `Leia isso de forma natural, amigável e descontraída, como um homem brasileiro jovem e inteligente: "${text}"`;
+    const synthesisPrompt = `Leia esta mensagem de forma natural, expressiva e levemente entusiasmada, como um homem brasileiro jovem e inteligente: "${text}"`;
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: synthesisPrompt }] }],
