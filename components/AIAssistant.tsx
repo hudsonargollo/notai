@@ -84,8 +84,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [typingId, setTypingId] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -121,8 +123,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
     const cleanText = text.replace(/\*\*/g, '').trim();
     if (!cleanText) return;
     
-    setIsSpeaking(true);
+    setIsGeneratingAudio(true);
     const base64Audio = await generateNeuralTTS(cleanText, currentLang);
+    setIsGeneratingAudio(false);
+    
     if (!base64Audio) {
       setIsSpeaking(false);
       return;
@@ -132,6 +136,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
     const ctx = audioContextRef.current;
     if (ctx.state === 'suspended') await ctx.resume();
     
+    setIsSpeaking(true);
     const audioBuffer = await decodeAudioData(decodeBase64(base64Audio), ctx, 24000, 1);
     const source = ctx.createBufferSource();
     source.buffer = audioBuffer;
@@ -152,6 +157,26 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
         onShowPaywall?.();
         return;
     }
+
+    // Generate contextual loading message based on user input
+    const lowerText = text.toLowerCase();
+    let contextMessage = 'Analisando sua mensagem...';
+    
+    if (lowerText.includes('gast') || lowerText.includes('despesa') || lowerText.includes('quanto')) {
+      contextMessage = '💰 Calculando seus gastos...';
+    } else if (lowerText.includes('dica') || lowerText.includes('conselho') || lowerText.includes('ajuda')) {
+      contextMessage = '💡 Preparando dicas personalizadas...';
+    } else if (lowerText.includes('registr') || lowerText.includes('adiciona') || lowerText.includes('comprei')) {
+      contextMessage = '📝 Registrando sua despesa...';
+    } else if (lowerText.includes('orçamento') || lowerText.includes('budget')) {
+      contextMessage = '📊 Analisando seu orçamento...';
+    } else if (lowerText.includes('economia') || lowerText.includes('poupar') || lowerText.includes('economizar')) {
+      contextMessage = '🎯 Buscando oportunidades de economia...';
+    } else if (lowerText.includes('categoria') || lowerText.includes('onde')) {
+      contextMessage = '🏷️ Categorizando informações...';
+    }
+    
+    setLoadingMessage(contextMessage);
 
     const updatedHistory = [...messages, { id: Date.now().toString(), role: 'user', content: text } as ChatMessage];
     setMessages(updatedHistory);
@@ -200,12 +225,50 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
         }
         const recognition = new SpeechRecognition();
         recognition.lang = currentLang === 'pt' ? 'pt-BR' : 'en-US';
+        recognition.continuous = false; // Single utterance
+        recognition.interimResults = false; // Only final results
+        recognition.maxAlternatives = 1;
+        
+        // Improved audio settings
+        recognition.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        
         recognition.onstart = () => {
             setIsListening(true);
-            if (isSpeaking && currentSourceRef.current) currentSourceRef.current.stop();
+            // Stop any playing audio when user starts speaking
+            if (isSpeaking && currentSourceRef.current) {
+              try { currentSourceRef.current.stop(); } catch(e) {}
+              setIsSpeaking(false);
+            }
         };
-        recognition.onresult = (e: any) => handleSendMessage(e.results[0][0].transcript);
+        
+        recognition.onresult = (e: any) => {
+          const transcript = e.results[0][0].transcript;
+          const confidence = e.results[0][0].confidence;
+          
+          // Only process if confidence is reasonable
+          if (confidence > 0.5) {
+            handleSendMessage(transcript);
+          } else {
+            console.warn('Low confidence speech recognition:', confidence);
+            // Optionally show a message to user
+          }
+        };
+        
+        recognition.onerror = (e: any) => {
+          console.error("Speech recognition error:", e.error);
+          setIsListening(false);
+          
+          if (e.error === 'no-speech') {
+            // User didn't speak, just close silently
+          } else if (e.error === 'audio-capture') {
+            alert("Não consegui acessar o microfone. Verifique as permissões.");
+          } else if (e.error === 'not-allowed') {
+            alert("O Neo precisa acessar seu microfone para te ouvir!");
+          }
+        };
+        
         recognition.onend = () => setIsListening(false);
+        
         recognition.start();
         recognitionRef.current = recognition;
       } catch (err) {
@@ -226,14 +289,20 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
              <button onClick={() => setIsExpanded(true)} className="flex items-center gap-2.5 pr-2 border-r border-white/5 transition-all group">
                 <div className="relative">
                   <img src={AVATAR_URL} alt="Neo" className="w-7 h-7 rounded-full shadow-inner" />
-                  <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-950 ${isSpeaking ? 'bg-energy-500 animate-pulse' : isProcessing ? 'bg-blue-500 animate-spin' : 'bg-green-500'}`}></div>
+                  <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-950 ${isSpeaking ? 'bg-energy-500 animate-pulse' : isProcessing ? 'bg-blue-500 animate-spin' : isGeneratingAudio ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></div>
                 </div>
                 <div className="text-left">
                     <span className="font-black text-[7px] uppercase tracking-widest text-energy-500 block opacity-70 leading-none">Neo v2.5</span>
-                    <span className="font-bold text-[10px] text-white/90">Falar com o Neo...</span>
+                    <span className="font-bold text-[10px] text-white/90">
+                      {isListening ? '🎤 Escutando...' : isProcessing ? '⚡ Processando...' : isSpeaking ? '🔊 Falando...' : 'Falar com o Neo...'}
+                    </span>
                 </div>
              </button>
-             <button onClick={toggleVoice} className={`p-1.5 rounded-full transition-all ${isListening ? 'bg-red-500 text-white shadow-lg scale-110' : 'text-slate-500 active:text-white'}`}>
+             <button 
+               onClick={toggleVoice} 
+               disabled={isProcessing || isSpeaking || isGeneratingAudio}
+               className={`p-1.5 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed ${isListening ? 'bg-red-500 text-white shadow-lg scale-110' : 'text-slate-500 active:text-white'}`}
+             >
                 {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
              </button>
           </motion.div>
@@ -246,13 +315,13 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
              <div className="px-4 py-3 border-b border-white/5 flex justify-between items-center bg-slate-900/40 backdrop-blur-xl shrink-0">
                 <div className="flex items-center gap-3">
                    <div className="relative">
-                      <img src={AVATAR_URL} alt="Neo" className={`w-8 h-8 rounded-full border border-white/10 ${isSpeaking ? 'scale-110 ring-2 ring-energy-500/20' : ''}`} />
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-950 ${isListening ? 'bg-red-500 animate-ping' : isProcessing ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`}></div>
+                      <img src={AVATAR_URL} alt="Neo" className={`w-8 h-8 rounded-full border border-white/10 ${isSpeaking || isGeneratingAudio ? 'scale-110 ring-2 ring-energy-500/20' : ''}`} />
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-950 ${isListening ? 'bg-red-500 animate-ping' : isProcessing ? 'bg-blue-500 animate-pulse' : isGeneratingAudio ? 'bg-yellow-500 animate-pulse' : isSpeaking ? 'bg-energy-500 animate-pulse' : 'bg-green-500'}`}></div>
                    </div>
                    <div>
                       <h3 className="font-black text-[11px] text-white leading-none">Neo Analytics</h3>
                       <p className="text-[7px] uppercase font-black text-energy-500 tracking-widest mt-1 opacity-70">
-                        {isListening ? 'Escutando...' : isProcessing ? 'Processando...' : 'Sistemas On-line'}
+                        {isListening ? 'Escutando...' : isProcessing ? 'Processando...' : isGeneratingAudio ? 'Gerando Áudio...' : isSpeaking ? 'Falando...' : 'Sistemas On-line'}
                       </p>
                    </div>
                 </div>
@@ -277,6 +346,34 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
                   >
                     <div className={`max-w-[88%] rounded-[1.2rem] p-3 text-[12px] font-bold leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-trust-500 text-white rounded-tr-sm shadow-lg shadow-trust-500/20' : 'bg-white/5 text-slate-100 border border-white/5 rounded-tl-sm backdrop-blur-3xl'}`}>
                       <TypewriterMessage content={msg.content} isNew={typingId === msg.id} onComplete={() => setTypingId(null)} />
+                      
+                      {/* Audio generation indicator */}
+                      {msg.role === 'assistant' && isGeneratingAudio && msg.id === messages[messages.length - 1]?.id && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2"
+                        >
+                          <motion.div
+                            animate={{ scale: [1, 1.2, 1] }}
+                            transition={{ duration: 0.8, repeat: Infinity }}
+                          >
+                            <Volume2 className="h-3 w-3 text-energy-500" />
+                          </motion.div>
+                          <span className="text-[8px] font-black uppercase tracking-widest text-energy-500/70">Gerando áudio...</span>
+                          <div className="flex gap-0.5 ml-auto">
+                            {[0, 1, 2].map((i) => (
+                              <motion.div
+                                key={i}
+                                animate={{ opacity: [0.3, 1, 0.3] }}
+                                transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.2 }}
+                                className="w-1 h-1 bg-energy-500 rounded-full"
+                              />
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                      
                       {msg.suggestions && !typingId && msg.role === 'assistant' && (
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {msg.suggestions.map((s, idx) => (
@@ -288,12 +385,58 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
                   </motion.div>
                 ))}
                 {isProcessing && (
-                  <div className="flex justify-start">
-                    <div className="bg-white/5 border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2 shadow-xl">
-                       <Loader2 className="h-3 w-3 text-energy-500 animate-spin" />
-                       <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Neo está processando...</span>
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-start"
+                  >
+                    <div className="bg-gradient-to-br from-energy-500/10 to-trust-500/10 border border-energy-500/20 px-4 py-3 rounded-2xl rounded-tl-sm shadow-2xl backdrop-blur-xl">
+                       <div className="flex items-center gap-3 mb-2">
+                         <div className="relative">
+                           <motion.div
+                             animate={{ rotate: 360 }}
+                             transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                             className="w-5 h-5"
+                           >
+                             <Bot className="h-5 w-5 text-energy-500" />
+                           </motion.div>
+                           <motion.div
+                             animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+                             transition={{ duration: 1.5, repeat: Infinity }}
+                             className="absolute inset-0 bg-energy-500/20 rounded-full blur-md"
+                           />
+                         </div>
+                         <span className="text-[11px] font-black text-white">{loadingMessage}</span>
+                       </div>
+                       
+                       {/* Cognitive Load Reduction: Animated thought waves */}
+                       <div className="flex gap-1.5 items-center">
+                         {[0, 1, 2, 3, 4].map((i) => (
+                           <motion.div
+                             key={i}
+                             animate={{
+                               height: ["4px", "12px", "4px"],
+                               opacity: [0.3, 1, 0.3]
+                             }}
+                             transition={{
+                               duration: 1.2,
+                               repeat: Infinity,
+                               delay: i * 0.15,
+                               ease: "easeInOut"
+                             }}
+                             className="w-1 bg-gradient-to-t from-energy-500 to-trust-500 rounded-full"
+                           />
+                         ))}
+                       </div>
+                       
+                       {/* Subtle progress indicator */}
+                       <motion.div 
+                         className="mt-2 h-0.5 bg-gradient-to-r from-energy-500/0 via-energy-500 to-energy-500/0 rounded-full"
+                         animate={{ x: ["-100%", "100%"] }}
+                         transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                       />
                     </div>
-                  </div>
+                  </motion.div>
                 )}
                 <div ref={messagesEndRef} className="h-1" />
              </div>
@@ -306,21 +449,23 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
                         type="text" 
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                        placeholder="Manda uma pro Neo..."
-                        className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-4 pr-10 outline-none transition-all text-[12px] font-bold text-white placeholder:text-slate-800"
+                        onKeyDown={(e) => e.key === 'Enter' && !isProcessing && !isSpeaking && !isGeneratingAudio && handleSendMessage()}
+                        placeholder={isProcessing || isSpeaking || isGeneratingAudio ? "Aguarde o Neo terminar..." : "Manda uma pro Neo..."}
+                        disabled={isProcessing || isSpeaking || isGeneratingAudio}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-4 pr-10 outline-none transition-all text-[12px] font-bold text-white placeholder:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <button 
                         onClick={() => handleSendMessage()}
-                        disabled={!inputText.trim() || isTyping || isProcessing}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 bg-energy-500 text-white rounded-lg shadow-lg disabled:opacity-20 active:scale-90 transition-transform"
+                        disabled={!inputText.trim() || isTyping || isProcessing || isSpeaking || isGeneratingAudio}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 bg-energy-500 text-white rounded-lg shadow-lg disabled:opacity-20 disabled:cursor-not-allowed active:scale-90 transition-transform"
                       >
                          <Send className="h-4 w-4" />
                       </button>
                    </div>
                    <button 
                      onClick={toggleVoice}
-                     className={`p-2.5 rounded-xl transition-all shadow-xl ${isListening ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-white/5 border border-white/10 text-slate-500 active:text-white'}`}
+                     disabled={isProcessing || isSpeaking || isGeneratingAudio}
+                     className={`p-2.5 rounded-xl transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${isListening ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-white/5 border border-white/10 text-slate-500 active:text-white'}`}
                    >
                       <Mic className="h-4.5 w-4.5" />
                    </button>

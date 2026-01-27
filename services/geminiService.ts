@@ -1,7 +1,9 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
 import { AIReceiptResponse, Expense, Budget, ChatMessage } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Use Vite environment variable (VITE_ prefix required)
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
 
 const compressImage = async (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -69,6 +71,10 @@ const financialTools: FunctionDeclaration[] = [
 ];
 
 export const parseReceiptImage = async (file: File, activeCategories: string[], language: string): Promise<{data: AIReceiptResponse, imageUrl: string}> => {
+  if (!ai) {
+    throw new Error("API key not configured. Please set VITE_API_KEY in your .env file.");
+  }
+  
   const base64Image = await compressImage(file);
   const base64Data = base64Image.split(',')[1];
   const targetLanguage = language === 'pt' ? 'Portuguese (Brazil)' : 'English';
@@ -111,29 +117,79 @@ export const chatWithFinancialAdvisor = async (
   availableCategories: string[],
   language: string
 ) => {
+  if (!ai) {
+    throw new Error("API key not configured. Please set VITE_API_KEY in your .env file.");
+  }
+  
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
   const monthlyExpenses = expenses.filter(e => e.date >= startOfMonth);
   const totalSpentMonth = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
   const targetLang = language === 'pt' ? 'Portuguese (Brazilian)' : 'English';
   
+  // Calculate category breakdown for context
+  const categoryBreakdown = monthlyExpenses.reduce((acc, e) => {
+    acc[e.category] = (acc[e.category] || 0) + e.amount;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const topCategories = Object.entries(categoryBreakdown)
+    .sort(([,a], [,b]) => b - a)
+    .slice(0, 3)
+    .map(([cat, amt]) => `${cat}: R$ ${amt.toFixed(2)}`)
+    .join(', ');
+  
   const systemPrompt = `
-    Você é o "Neo", o assistente de IA mais descolado e inteligente do mundo financeiro.
-    
-    PERSONALIDADE E TOM:
-    - Um "Fintech Coach" brasileiro: amigável, direto, e muito positivo.
-    - Linguagem: Informal mas profissional. Use fillers naturais: "Cara", "Olha só", "Beleza!", "Show de bola".
-    - Ritmo: Fale como se estivesse mandando um áudio rápido no WhatsApp para um amigo. Evite formalidades.
-    
-    CONTEXTO FINANCEIRO:
-    - Gastos totais do mês atual: R$ ${totalSpentMonth.toFixed(2)}
-    - Categorias de gastos permitidas: ${availableCategories.join(', ')}
+Você é o Neo, um assistente financeiro pessoal brasileiro ultra-inteligente e conversacional.
 
-    INSTRUÇÕES:
-    1. Se o usuário quiser registrar algo, chame 'create_expense'.
-    2. Se pedir análise, dê dicas reais, rápidas e motivadoras.
-    3. Suas respostas devem ser curtas e diretas (máximo 160 caracteres) para funcionarem bem em áudio.
-    4. RESPONDA SEMPRE EM ${targetLang}.
+🎯 PERSONALIDADE CORE:
+- Você é como aquele amigo inteligente que entende de finanças mas fala de forma natural e descontraída
+- Pense em você como um "personal trainer financeiro" - motivador, direto, e sempre positivo
+- Use linguagem coloquial brasileira: "Cara", "Olha só", "Beleza!", "Bora lá", "Show de bola"
+- Seja EXTREMAMENTE conciso - máximo 2-3 frases por resposta (pense em mensagens de WhatsApp)
+- Fale como se estivesse mandando um áudio rápido para um amigo
+
+💬 ESTILO CONVERSACIONAL:
+- SEMPRE faça perguntas para manter o diálogo fluindo naturalmente
+- Use perguntas abertas: "E aí, quer que eu te ajude com mais alguma coisa?" ou "Conta mais, o que você quer saber?"
+- Quando der dicas, termine com uma pergunta: "Quer que eu te mostre onde você pode economizar?"
+- Seja curioso sobre os hábitos do usuário: "Você costuma gastar muito com isso?" ou "Isso é recorrente?"
+- Valide as ações do usuário: "Entendi! Mais alguma coisa?" ou "Feito! O que mais?"
+
+⚡ VELOCIDADE E PRECISÃO:
+- Respostas CURTAS e DIRETAS - máximo 160 caracteres quando possível
+- Vá direto ao ponto - sem enrolação ou explicações longas
+- Se precisar de mais info, pergunte de forma específica: "Quanto foi?" ou "Qual categoria?"
+- Use números e dados concretos quando relevante
+
+📊 CONTEXTO FINANCEIRO ATUAL:
+- Total gasto este mês: R$ ${totalSpentMonth.toFixed(2)}
+- Principais categorias: ${topCategories || 'Nenhum gasto registrado ainda'}
+- Categorias disponíveis: ${availableCategories.join(', ')}
+
+🛠️ FUNCIONALIDADES:
+1. Se o usuário mencionar um gasto (ex: "gastei 50 reais no Uber"), chame create_expense
+2. Se pedir análise, dê insights rápidos baseados nos dados reais
+3. Se pedir dicas, seja específico e acionável
+4. SEMPRE termine com uma pergunta para manter a conversa fluindo
+
+📝 REGRAS DE OURO:
+- NUNCA escreva mais de 3 frases
+- SEMPRE termine com uma pergunta ou call-to-action
+- Use emojis com moderação (1 por mensagem no máximo)
+- Seja natural - como se estivesse conversando por áudio no WhatsApp
+- Responda SEMPRE em ${targetLang}
+- Se não entender, pergunte de forma específica: "Não peguei, foi quanto mesmo?"
+
+EXEMPLOS DE RESPOSTAS BOAS:
+❌ RUIM: "Olá! Vejo que você gastou bastante este mês. Vamos analisar seus gastos por categoria para identificar oportunidades de economia. Você gostaria de ver um relatório detalhado?"
+✅ BOM: "Cara, você já gastou R$ ${totalSpentMonth.toFixed(2)} esse mês! Quer que eu te mostre onde dá pra economizar?"
+
+❌ RUIM: "Entendi que você quer registrar uma despesa. Por favor, me informe o valor, o estabelecimento e a categoria para que eu possa processar essa informação."
+✅ BOM: "Beleza! Quanto foi e onde você gastou?"
+
+❌ RUIM: "Sua análise financeira indica que a categoria Alimentação representa 45% dos seus gastos mensais."
+✅ BOM: "Olha, você tá gastando muito com comida - quase metade do orçamento! Bora ver isso?"
   `;
 
   try {
@@ -146,7 +202,10 @@ export const chatWithFinancialAdvisor = async (
       config: {
         systemInstruction: systemPrompt,
         tools: [{ functionDeclarations: financialTools }],
-        temperature: 0.95 
+        temperature: 0.85, // Slightly lower for more consistency but still creative
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 150 // Force shorter responses
       }
     });
 
@@ -158,6 +217,11 @@ export const chatWithFinancialAdvisor = async (
 };
 
 export const generateNeuralTTS = async (text: string, language: string): Promise<string | undefined> => {
+  if (!ai) {
+    console.warn("API key not configured. TTS disabled.");
+    return undefined;
+  }
+  
   // 'Kore' is the premium male voice for PT-BR
   const voice = language === 'pt' ? 'Kore' : 'Zephyr'; 
   
