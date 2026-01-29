@@ -1,10 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Mic, MicOff, Volume2, VolumeX, ChevronDown, Bot, Zap, Loader2 } from 'lucide-react';
+import { Send, Mic, MicOff, Volume2, VolumeX, ChevronDown, Bot } from 'lucide-react';
 import { useTranslation } from '../utils/i18n';
 import { Language, ChatMessage, AVATAR_URL } from '../types';
 import { chatWithFinancialAdvisor, generateNeuralTTS } from '../services/geminiService';
 import { getExpenses, getBudgets, getCategories, addExpense, getChatHistory, saveChatHistory, incrementAIInteraction } from '../services/expenseService';
+import { Button } from '../src/components/ui/button';
+import { Input } from '../src/components/ui/input';
+import { Skeleton } from '../src/components/ui/skeleton';
+import { useIsMobile } from '../src/hooks/useMediaQuery';
+import { fadeInUp } from '../src/lib/animations';
+import { Dialog, DialogContent } from '../src/components/ui/dialog';
+import { Sheet, SheetContent } from '../src/components/ui/sheet';
 
 function decodeBase64(base64: string) {
   const binaryString = atob(base64);
@@ -68,6 +75,100 @@ const TypewriterMessage: React.FC<{ content: string; isNew: boolean; onComplete?
   );
 };
 
+/**
+ * TypingIndicator Component
+ * 
+ * Shows a skeleton-based typing indicator when AI is processing
+ * Uses Shadcn UI Skeleton components for consistent loading states
+ */
+const TypingIndicator: React.FC<{ loadingMessage: string }> = ({ loadingMessage }) => {
+  return (
+    <motion.div 
+      variants={fadeInUp}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className="flex justify-start"
+    >
+      <div className="bg-gradient-to-br from-energy-500/10 to-trust-500/10 border border-energy-500/20 px-4 py-3 rounded-2xl rounded-tl-sm shadow-2xl backdrop-blur-xl max-w-[88%]">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="relative">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              className="w-5 h-5"
+            >
+              <Bot className="h-4 w-4 text-energy-500" strokeWidth={2} />
+            </motion.div>
+            <motion.div
+              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="absolute inset-0 bg-energy-500/20 rounded-full blur-md"
+            />
+          </div>
+          <span className="text-[11px] font-black text-white">{loadingMessage}</span>
+        </div>
+        
+        {/* Skeleton-based thought waves */}
+        <div className="flex gap-1.5 items-center">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton
+              key={i}
+              className="w-1 rounded-full bg-gradient-to-t from-energy-500 to-trust-500"
+              style={{
+                height: '4px',
+                animation: `pulse 1.2s ease-in-out infinite`,
+                animationDelay: `${i * 0.15}s`,
+              }}
+            />
+          ))}
+        </div>
+        
+        {/* Subtle progress indicator */}
+        <motion.div 
+          className="mt-2 h-0.5 bg-gradient-to-r from-energy-500/0 via-energy-500 to-energy-500/0 rounded-full"
+          animate={{ x: ["-100%", "100%"] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
+    </motion.div>
+  );
+};
+
+/**
+ * AudioGenerationIndicator Component
+ * 
+ * Shows when audio is being generated for TTS
+ */
+const AudioGenerationIndicator: React.FC = () => {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2"
+    >
+      <motion.div
+        animate={{ scale: [1, 1.2, 1] }}
+        transition={{ duration: 0.8, repeat: Infinity }}
+      >
+        <Volume2 className="h-4 w-4 text-energy-500" strokeWidth={2} />
+      </motion.div>
+      <span className="text-[8px] font-black uppercase tracking-widest text-energy-500/70">Gerando áudio...</span>
+      <div className="flex gap-0.5 ml-auto">
+        {[0, 1, 2].map((i) => (
+          <motion.div
+            key={i}
+            animate={{ opacity: [0.3, 1, 0.3] }}
+            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.2 }}
+            className="w-1 h-1 bg-energy-500 rounded-full"
+          />
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
 interface AIAssistantProps {
   onClose: () => void;
   currentLang: Language;
@@ -77,6 +178,7 @@ interface AIAssistantProps {
 
 export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPaywall }) => {
   const t = useTranslation(currentLang);
+  const isMobile = useIsMobile();
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -225,16 +327,14 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
         }
         const recognition = new SpeechRecognition();
         recognition.lang = currentLang === 'pt' ? 'pt-BR' : 'en-US';
-        recognition.continuous = false; // Single utterance
-        recognition.interimResults = false; // Only final results
+        recognition.continuous = false;
+        recognition.interimResults = false;
         recognition.maxAlternatives = 1;
         
-        // Improved audio settings
         recognition.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         
         recognition.onstart = () => {
             setIsListening(true);
-            // Stop any playing audio when user starts speaking
             if (isSpeaking && currentSourceRef.current) {
               try { currentSourceRef.current.stop(); } catch(e) {}
               setIsSpeaking(false);
@@ -245,12 +345,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
           const transcript = e.results[0][0].transcript;
           const confidence = e.results[0][0].confidence;
           
-          // Only process if confidence is reasonable
           if (confidence > 0.5) {
             handleSendMessage(transcript);
           } else {
             console.warn('Low confidence speech recognition:', confidence);
-            // Optionally show a message to user
           }
         };
         
@@ -278,202 +376,183 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentLang, onShowPay
     }
   };
 
+  // Collapsed pill button
+  const CollapsedPill = () => (
+    <motion.div 
+      layoutId="neural-pill"
+      className="pointer-events-auto flex items-center gap-1.5 glass-panel px-4 py-2 rounded-full shadow-2xl border-white/5 mb-2 active:scale-95 transition-all"
+    >
+      <button onClick={() => setIsExpanded(true)} className="flex items-center gap-2.5 pr-2 border-r border-white/5 transition-all group">
+        <div className="relative">
+          <img src={AVATAR_URL} alt="Neo" className="w-7 h-7 rounded-full shadow-inner" />
+          <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-950 ${isSpeaking ? 'bg-energy-500 animate-pulse' : isProcessing ? 'bg-blue-500 animate-spin' : isGeneratingAudio ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></div>
+        </div>
+        <div className="text-left">
+          <span className="font-black text-[7px] uppercase tracking-widest text-energy-500 block opacity-70 leading-none">Neo v2.5</span>
+          <span className="font-bold text-[10px] text-white/90">
+            {isListening ? '🎤 Escutando...' : isProcessing ? '⚡ Processando...' : isSpeaking ? '🔊 Falando...' : 'Falar com o Neo...'}
+          </span>
+        </div>
+      </button>
+      <button 
+        onClick={toggleVoice} 
+        disabled={isProcessing || isSpeaking || isGeneratingAudio}
+        className={`p-1.5 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed ${isListening ? 'bg-red-500 text-white shadow-lg scale-110' : 'text-slate-500 active:text-white'}`}
+      >
+        {isListening ? <MicOff className="h-4 w-4" strokeWidth={2} /> : <Mic className="h-4 w-4" strokeWidth={2} />}
+      </button>
+    </motion.div>
+  );
+
+  // Chat content (shared between mobile and desktop)
+  const ChatContent = () => (
+    <>
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-white/5 flex justify-between items-center bg-slate-900/40 backdrop-blur-xl shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <img src={AVATAR_URL} alt="Neo" className={`w-8 h-8 rounded-full border border-white/10 ${isSpeaking || isGeneratingAudio ? 'scale-110 ring-2 ring-energy-500/20' : ''}`} />
+            <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-950 ${isListening ? 'bg-red-500 animate-ping' : isProcessing ? 'bg-blue-500 animate-pulse' : isGeneratingAudio ? 'bg-yellow-500 animate-pulse' : isSpeaking ? 'bg-energy-500 animate-pulse' : 'bg-green-500'}`}></div>
+          </div>
+          <div>
+            <h3 className="font-black text-[11px] text-white leading-none">Neo Analytics</h3>
+            <p className="text-[7px] uppercase font-black text-energy-500 tracking-widest mt-1 opacity-70">
+              {isListening ? 'Escutando...' : isProcessing ? 'Processando...' : isGeneratingAudio ? 'Gerando Áudio...' : isSpeaking ? 'Falando...' : 'Sistemas On-line'}
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-1.5">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => setSoundEnabled(!soundEnabled)} 
+            className="h-8 w-8 rounded-lg"
+          >
+            {soundEnabled ? <Volume2 className="h-4 w-4" strokeWidth={2} /> : <VolumeX className="h-4 w-4 text-red-400" strokeWidth={2} />}
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => setIsExpanded(false)} 
+            className="h-8 w-8 rounded-lg"
+          >
+            <ChevronDown className="h-4 w-4" strokeWidth={2} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Chat History */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar scroll-smooth">
+        {messages.map((msg) => (
+          <motion.div 
+            key={msg.id}
+            variants={fadeInUp}
+            initial="initial"
+            animate="animate"
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div className={`max-w-[88%] rounded-[1.2rem] p-3 text-[12px] font-bold leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-trust-500 text-white rounded-tr-sm shadow-lg shadow-trust-500/20' : 'bg-white/5 text-slate-100 border border-white/5 rounded-tl-sm backdrop-blur-3xl'}`}>
+              <TypewriterMessage content={msg.content} isNew={typingId === msg.id} onComplete={() => setTypingId(null)} />
+              
+              {/* Audio generation indicator */}
+              {msg.role === 'assistant' && isGeneratingAudio && msg.id === messages[messages.length - 1]?.id && (
+                <AudioGenerationIndicator />
+              )}
+              
+              {msg.suggestions && !typingId && msg.role === 'assistant' && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {msg.suggestions.map((s, idx) => (
+                    <Button
+                      key={idx}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleSendMessage(s)}
+                      className="text-[8px] font-black uppercase tracking-widest h-auto px-2 py-1.5 border border-white/10 hover:border-energy-500/50"
+                    >
+                      {s}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        ))}
+        
+        {/* Typing indicator with Skeleton */}
+        <AnimatePresence>
+          {isProcessing && <TypingIndicator loadingMessage={loadingMessage} />}
+        </AnimatePresence>
+        
+        <div ref={messagesEndRef} className="h-1" />
+      </div>
+
+      {/* Input Area */}
+      <div className="p-4 bg-slate-900/60 backdrop-blur-3xl border-t border-white/5 pb-8">
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1">
+            <Input 
+              type="text" 
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !isProcessing && !isSpeaking && !isGeneratingAudio && handleSendMessage()}
+              placeholder={isProcessing || isSpeaking || isGeneratingAudio ? "Aguarde o Neo terminar..." : "Manda uma pro Neo..."}
+              disabled={isProcessing || isSpeaking || isGeneratingAudio}
+              className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-4 pr-10 text-[12px] font-bold disabled:opacity-50"
+            />
+            <Button
+              size="icon"
+              onClick={() => handleSendMessage()}
+              disabled={!inputText.trim() || isTyping || isProcessing || isSpeaking || isGeneratingAudio}
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 bg-energy-500 hover:bg-energy-600 rounded-lg"
+            >
+              <Send className="h-4 w-4" strokeWidth={2} />
+            </Button>
+          </div>
+          <Button
+            size="icon"
+            onClick={toggleVoice}
+            disabled={isProcessing || isSpeaking || isGeneratingAudio}
+            className={`h-10 w-10 rounded-xl ${isListening ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-white/5 hover:bg-white/10 border border-white/10'}`}
+          >
+            <Mic className="h-4 w-4" strokeWidth={2} />
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[60] pointer-events-none flex flex-col items-center p-3 pb-safe">
-      <AnimatePresence mode="wait">
-        {!isExpanded ? (
-          <motion.div 
-            layoutId="neural-pill"
-            className="pointer-events-auto flex items-center gap-1.5 glass-panel px-4 py-2 rounded-full shadow-2xl border-white/5 mb-2 active:scale-95 transition-all"
-          >
-             <button onClick={() => setIsExpanded(true)} className="flex items-center gap-2.5 pr-2 border-r border-white/5 transition-all group">
-                <div className="relative">
-                  <img src={AVATAR_URL} alt="Neo" className="w-7 h-7 rounded-full shadow-inner" />
-                  <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-950 ${isSpeaking ? 'bg-energy-500 animate-pulse' : isProcessing ? 'bg-blue-500 animate-spin' : isGeneratingAudio ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></div>
-                </div>
-                <div className="text-left">
-                    <span className="font-black text-[7px] uppercase tracking-widest text-energy-500 block opacity-70 leading-none">Neo v2.5</span>
-                    <span className="font-bold text-[10px] text-white/90">
-                      {isListening ? '🎤 Escutando...' : isProcessing ? '⚡ Processando...' : isSpeaking ? '🔊 Falando...' : 'Falar com o Neo...'}
-                    </span>
-                </div>
-             </button>
-             <button 
-               onClick={toggleVoice} 
-               disabled={isProcessing || isSpeaking || isGeneratingAudio}
-               className={`p-1.5 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed ${isListening ? 'bg-red-500 text-white shadow-lg scale-110' : 'text-slate-500 active:text-white'}`}
-             >
-                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-             </button>
-          </motion.div>
-        ) : (
-          <motion.div 
-            layoutId="neural-pill"
-            className="pointer-events-auto glass-panel w-full max-w-sm h-[58vh] rounded-[2rem] shadow-[0_32px_128px_rgba(0,0,0,0.8)] flex flex-col relative overflow-hidden border-white/5"
-          >
-             {/* Header - Extremely compact */}
-             <div className="px-4 py-3 border-b border-white/5 flex justify-between items-center bg-slate-900/40 backdrop-blur-xl shrink-0">
-                <div className="flex items-center gap-3">
-                   <div className="relative">
-                      <img src={AVATAR_URL} alt="Neo" className={`w-8 h-8 rounded-full border border-white/10 ${isSpeaking || isGeneratingAudio ? 'scale-110 ring-2 ring-energy-500/20' : ''}`} />
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-950 ${isListening ? 'bg-red-500 animate-ping' : isProcessing ? 'bg-blue-500 animate-pulse' : isGeneratingAudio ? 'bg-yellow-500 animate-pulse' : isSpeaking ? 'bg-energy-500 animate-pulse' : 'bg-green-500'}`}></div>
-                   </div>
-                   <div>
-                      <h3 className="font-black text-[11px] text-white leading-none">Neo Analytics</h3>
-                      <p className="text-[7px] uppercase font-black text-energy-500 tracking-widest mt-1 opacity-70">
-                        {isListening ? 'Escutando...' : isProcessing ? 'Processando...' : isGeneratingAudio ? 'Gerando Áudio...' : isSpeaking ? 'Falando...' : 'Sistemas On-line'}
-                      </p>
-                   </div>
-                </div>
-                <div className="flex gap-1.5">
-                   <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-2 glass-panel rounded-lg active:scale-90 transition-transform">
-                      {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-slate-300" /> : <VolumeX className="h-3.5 w-3.5 text-red-400" />}
-                   </button>
-                   <button onClick={() => setIsExpanded(false)} className="p-2 glass-panel rounded-lg active:scale-90 transition-transform">
-                      <ChevronDown className="h-4 w-4 text-slate-300" />
-                   </button>
-                </div>
-             </div>
+    <>
+      {/* Collapsed pill button - always visible */}
+      {!isExpanded && (
+        <div className="fixed inset-x-0 bottom-0 z-[60] pointer-events-none flex flex-col items-center p-3 pb-safe">
+          <CollapsedPill />
+        </div>
+      )}
 
-             {/* Chat History - Reduced Padding & Small Font */}
-             <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar scroll-smooth">
-                {messages.map((msg) => (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    key={msg.id} 
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`max-w-[88%] rounded-[1.2rem] p-3 text-[12px] font-bold leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-trust-500 text-white rounded-tr-sm shadow-lg shadow-trust-500/20' : 'bg-white/5 text-slate-100 border border-white/5 rounded-tl-sm backdrop-blur-3xl'}`}>
-                      <TypewriterMessage content={msg.content} isNew={typingId === msg.id} onComplete={() => setTypingId(null)} />
-                      
-                      {/* Audio generation indicator */}
-                      {msg.role === 'assistant' && isGeneratingAudio && msg.id === messages[messages.length - 1]?.id && (
-                        <motion.div 
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2"
-                        >
-                          <motion.div
-                            animate={{ scale: [1, 1.2, 1] }}
-                            transition={{ duration: 0.8, repeat: Infinity }}
-                          >
-                            <Volume2 className="h-3 w-3 text-energy-500" />
-                          </motion.div>
-                          <span className="text-[8px] font-black uppercase tracking-widest text-energy-500/70">Gerando áudio...</span>
-                          <div className="flex gap-0.5 ml-auto">
-                            {[0, 1, 2].map((i) => (
-                              <motion.div
-                                key={i}
-                                animate={{ opacity: [0.3, 1, 0.3] }}
-                                transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.2 }}
-                                className="w-1 h-1 bg-energy-500 rounded-full"
-                              />
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                      
-                      {msg.suggestions && !typingId && msg.role === 'assistant' && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {msg.suggestions.map((s, idx) => (
-                            <button key={idx} onClick={() => handleSendMessage(s)} className="text-[8px] font-black uppercase tracking-widest bg-white/5 px-2 py-1.5 rounded-lg border border-white/10 hover:border-energy-500/50 active:scale-95 transition-all whitespace-nowrap">{s}</button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-                {isProcessing && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex justify-start"
-                  >
-                    <div className="bg-gradient-to-br from-energy-500/10 to-trust-500/10 border border-energy-500/20 px-4 py-3 rounded-2xl rounded-tl-sm shadow-2xl backdrop-blur-xl">
-                       <div className="flex items-center gap-3 mb-2">
-                         <div className="relative">
-                           <motion.div
-                             animate={{ rotate: 360 }}
-                             transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                             className="w-5 h-5"
-                           >
-                             <Bot className="h-5 w-5 text-energy-500" />
-                           </motion.div>
-                           <motion.div
-                             animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
-                             transition={{ duration: 1.5, repeat: Infinity }}
-                             className="absolute inset-0 bg-energy-500/20 rounded-full blur-md"
-                           />
-                         </div>
-                         <span className="text-[11px] font-black text-white">{loadingMessage}</span>
-                       </div>
-                       
-                       {/* Cognitive Load Reduction: Animated thought waves */}
-                       <div className="flex gap-1.5 items-center">
-                         {[0, 1, 2, 3, 4].map((i) => (
-                           <motion.div
-                             key={i}
-                             animate={{
-                               height: ["4px", "12px", "4px"],
-                               opacity: [0.3, 1, 0.3]
-                             }}
-                             transition={{
-                               duration: 1.2,
-                               repeat: Infinity,
-                               delay: i * 0.15,
-                               ease: "easeInOut"
-                             }}
-                             className="w-1 bg-gradient-to-t from-energy-500 to-trust-500 rounded-full"
-                           />
-                         ))}
-                       </div>
-                       
-                       {/* Subtle progress indicator */}
-                       <motion.div 
-                         className="mt-2 h-0.5 bg-gradient-to-r from-energy-500/0 via-energy-500 to-energy-500/0 rounded-full"
-                         animate={{ x: ["-100%", "100%"] }}
-                         transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                       />
-                    </div>
-                  </motion.div>
-                )}
-                <div ref={messagesEndRef} className="h-1" />
-             </div>
-
-             {/* Bottom Input Area - Low Clutter */}
-             <div className="p-4 bg-slate-900/60 backdrop-blur-3xl border-t border-white/5 pb-8">
-                <div className="flex gap-2 items-center">
-                   <div className="relative flex-1">
-                      <input 
-                        type="text" 
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && !isProcessing && !isSpeaking && !isGeneratingAudio && handleSendMessage()}
-                        placeholder={isProcessing || isSpeaking || isGeneratingAudio ? "Aguarde o Neo terminar..." : "Manda uma pro Neo..."}
-                        disabled={isProcessing || isSpeaking || isGeneratingAudio}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-4 pr-10 outline-none transition-all text-[12px] font-bold text-white placeholder:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                      <button 
-                        onClick={() => handleSendMessage()}
-                        disabled={!inputText.trim() || isTyping || isProcessing || isSpeaking || isGeneratingAudio}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 bg-energy-500 text-white rounded-lg shadow-lg disabled:opacity-20 disabled:cursor-not-allowed active:scale-90 transition-transform"
-                      >
-                         <Send className="h-4 w-4" />
-                      </button>
-                   </div>
-                   <button 
-                     onClick={toggleVoice}
-                     disabled={isProcessing || isSpeaking || isGeneratingAudio}
-                     className={`p-2.5 rounded-xl transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${isListening ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-white/5 border border-white/10 text-slate-500 active:text-white'}`}
-                   >
-                      <Mic className="h-4.5 w-4.5" />
-                   </button>
-                </div>
-             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      {/* Expanded chat interface - responsive modal */}
+      {isMobile ? (
+        // Mobile: Use Sheet (bottom sheet)
+        <Sheet open={isExpanded} onOpenChange={setIsExpanded}>
+          <SheetContent 
+            side="bottom" 
+            className="h-[58vh] p-0 flex flex-col"
+            style={{
+              borderTopLeftRadius: "2rem",
+              borderTopRightRadius: "2rem",
+            }}
+          >
+            <ChatContent />
+          </SheetContent>
+        </Sheet>
+      ) : (
+        // Desktop: Use Dialog
+        <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
+          <DialogContent className="max-w-md h-[65vh] p-0 flex flex-col gap-0 overflow-hidden">
+            <ChatContent />
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 };

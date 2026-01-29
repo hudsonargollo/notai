@@ -19,6 +19,8 @@ This specification defines the transformation of NotAI from a standard web appli
 - **Bottom_Sheet**: A mobile UI pattern where content slides up from the bottom
 - **Command_Menu**: A keyboard-accessible search and navigation interface
 - **FAB**: Floating Action Button - a prominent circular button for primary actions
+- **NeoCore**: An animated 3D cube mascot component that provides visual personality and state feedback
+- **NeoState**: The current state of the NeoCore mascot (idle, listening, processing, success)
 
 ## Requirements
 
@@ -159,3 +161,20 @@ This specification defines the transformation of NotAI from a standard web appli
 3. WHEN a form is created, THE System SHALL use Shadcn_UI Form components with validation
 4. WHEN existing components are migrated, THE System SHALL maintain all current functionality
 5. THE System SHALL NOT have mixed usage of custom and Shadcn_UI components for the same purpose
+
+### Requirement 13: Animated Mascot Component
+
+**User Story:** As a user, I want an engaging animated mascot that provides visual feedback about the app's state, so that the interface feels alive and communicates system status in an intuitive way.
+
+#### Acceptance Criteria
+
+1. WHEN the Dashboard is displayed, THE System SHALL render the NeoCore mascot component as a prominent visual element
+2. WHEN the mascot is in idle state, THE System SHALL animate it with continuous slow rotation and floating motion
+3. WHEN the system is listening for input, THE System SHALL change the mascot to listening state with breathing animation and slower rotation
+4. WHEN the system is processing data, THE System SHALL change the mascot to processing state with rapid rotation and glitchy vibration effects
+5. WHEN an operation completes successfully, THE System SHALL change the mascot to success state with a spring animation to an isometric view
+6. WHEN the mascot state changes, THE System SHALL smoothly transition the border color (neon lime for idle/listening, electric purple for processing)
+7. WHEN the mascot is rendered, THE System SHALL use pure CSS 3D transforms without requiring heavy 3D libraries
+8. WHEN the mascot animates, THE System SHALL use Framer Motion for all state transitions and physics-based motion
+9. WHEN the user clicks the mascot, THE System SHALL trigger an interactive state change
+10. THE System SHALL display the mascot with a ground reflection effect for visual anchoring

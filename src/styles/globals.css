@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+@theme {
+  /* Base Colors - Dark Mode Theme */
+  --color-background: oklch(0.15 0.02 260);
+  --color-foreground: oklch(0.98 0.01 260);
+  --color-card: oklch(0.15 0.02 260);
+  --color-card-foreground: oklch(0.98 0.01 260);
+  --color-popover: oklch(0.15 0.02 260);
+  --color-popover-foreground: oklch(0.98 0.01 260);
+  --color-primary: oklch(0.98 0.01 260);
+  --color-primary-foreground: oklch(0.20 0.02 260);
+  --color-secondary: oklch(0.25 0.02 260);
+  --color-secondary-foreground: oklch(0.98 0.01 260);
+  --color-muted: oklch(0.25 0.02 260);
+  --color-muted-foreground: oklch(0.65 0.01 260);
+  --color-accent: oklch(0.25 0.02 260);
+  --color-accent-foreground: oklch(0.98 0.01 260);
+  --color-destructive: oklch(0.45 0.15 25);
+  --color-destructive-foreground: oklch(0.98 0.01 260);
+  --color-border: oklch(0.25 0.02 260);
+  --color-input: oklch(0.25 0.02 260);
+  --color-ring: oklch(0.83 0.01 260);
+  
+  /* Existing Custom Colors */
+  --color-trust-500: oklch(0.60 0.15 260);
+  --color-growth-500: oklch(0.65 0.15 160);
+  --color-energy-500: oklch(0.75 0.18 100);
+  --color-slate-950: #010409;
+  
+  /* NeoCore Custom Colors */
+  --color-void: #050505;
+  --color-neon: #CCFF00;
+  --color-electric: #7928CA;
+  
+  /* Border Radius Tokens */
+  --radius-lg: 0.5rem;
+  --radius-md: calc(0.5rem - 2px);
+  --radius-sm: calc(0.5rem - 4px);
+  --radius-4xl: 1.5rem;
+  --radius-5xl: 2.5rem;
+  
+  /* Ring Width Token for Subtle Focus Indicators */
+  --ring-width: 0.5px;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  overflow: hidden;
+  height: 100dvh;
+  width: 100vw;
+  position: fixed;
+  margin: 0;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.glass-panel {
+  background: rgba(15, 23, 42, 0.25);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.mesh-gradient {
+  background: 
+    radial-gradient(circle at 10% 10%, rgba(16, 185, 129, 0.04) 0%, transparent 40%),
+    radial-gradient(circle at 90% 90%, rgba(59, 130, 246, 0.04) 0%, transparent 40%),
+    #010409;
+}
+
+.safe-pb {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (max-width: 380px) {
+  html {
+    font-size: 13px;
+  }
+}
+
+/* ============================================
+   NeoCore Performance-Optimized CSS Animations
+   ============================================
+   Using CSS animations instead of Framer Motion
+   for continuous animations improves performance
+   by leveraging GPU acceleration and reducing
+   JavaScript overhead.
+   ============================================ */
+
+/* Idle State: Slow rotation with floating motion */
+@keyframes neo-idle-rotate {
+  0% {
+    transform: rotateX(20deg) rotateY(0deg) translateY(0px);
+  }
+  25% {
+    transform: rotateX(10deg) rotateY(90deg) translateY(-10px);
+  }
+  50% {
+    transform: rotateX(20deg) rotateY(180deg) translateY(0px);
+  }
+  75% {
+    transform: rotateX(10deg) rotateY(270deg) translateY(-10px);
+  }
+  100% {
+    transform: rotateX(20deg) rotateY(360deg) translateY(0px);
+  }
+}
+
+.neo-idle-animation {
+  animation: neo-idle-rotate 12s linear infinite;
+  will-change: transform;
+}
+
+/* Listening State: Breathing animation with slower rotation */
+@keyframes neo-listening-rotate {
+  0% {
+    transform: rotateX(10deg) rotateY(0deg) scale(1);
+  }
+  50% {
+    transform: rotateX(10deg) rotateY(180deg) scale(1.15);
+  }
+  100% {
+    transform: rotateX(10deg) rotateY(360deg) scale(1);
+  }
+}
+
+.neo-listening-animation {
+  animation: neo-listening-rotate 20s linear infinite;
+  will-change: transform;
+}
+
+/* Processing State: Rapid rotation with glitchy vibration */
+@keyframes neo-processing-rotate {
+  0% {
+    transform: rotateX(0deg) rotateY(0deg) scale(0.9);
+  }
+  25% {
+    transform: rotateX(90deg) rotateY(-90deg) scale(1.1);
+  }
+  50% {
+    transform: rotateX(180deg) rotateY(-180deg) scale(0.9);
+  }
+  75% {
+    transform: rotateX(270deg) rotateY(-270deg) scale(1.1);
+  }
+  100% {
+    transform: rotateX(360deg) rotateY(-360deg) scale(0.9);
+  }
+}
+
+.neo-processing-animation {
+  animation: neo-processing-rotate 1.5s linear infinite;
+  will-change: transform;
+}
+
+/* ============================================
+   Performance Optimization Utilities
+   ============================================ */
+
+/* GPU acceleration for smooth animations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  .neo-idle-animation,
+  .neo-listening-animation,
+  .neo-processing-animation {
+    animation: none;
+  }
+  
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Content visibility optimization for off-screen content */
+.optimize-rendering {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}

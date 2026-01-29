@@ -1,9 +1,35 @@
-
 import React, { useState, useEffect } from 'react';
-import { X, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Budget, Language } from '../types';
 import { saveBudget, getBudgets, getCategories } from '../services/expenseService';
 import { useTranslation } from '../utils/i18n';
+import { useIsMobile } from '../src/hooks/useMediaQuery';
+import { scaleOnHover, modalAnimation } from '../src/lib/animations';
+
+// Shadcn/UI Components
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../src/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '../src/components/ui/sheet';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../src/components/ui/select';
+import { Input } from '../src/components/ui/input';
+import { Label } from '../src/components/ui/label';
+import { Button } from '../src/components/ui/button';
 
 interface BudgetModalProps {
   onClose: () => void;
@@ -14,9 +40,11 @@ interface BudgetModalProps {
 export const BudgetModal: React.FC<BudgetModalProps> = ({ onClose, onSave, currentLang }) => {
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [amount, setAmount] = useState<number>(0);
+  const [amount, setAmount] = useState<string>('0');
   const [existingBudgets, setExistingBudgets] = useState<Budget[]>([]);
+  const [isOpen, setIsOpen] = useState(true);
   const t = useTranslation(currentLang);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const cats = getCategories();
@@ -26,72 +54,144 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({ onClose, onSave, curre
     const budgets = getBudgets();
     setExistingBudgets(budgets);
     const current = budgets.find(b => b.category === cats[0]);
-    if (current) setAmount(current.amount);
+    if (current) setAmount(current.amount.toString());
   }, []);
 
   const handleCategoryChange = (cat: string) => {
     setSelectedCategory(cat);
     const saved = existingBudgets.find(b => b.category === cat);
-    setAmount(saved ? saved.amount : 0);
+    setAmount(saved ? saved.amount.toString() : '0');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedCategory) {
-        saveBudget({ category: selectedCategory, amount });
-        onSave();
-        onClose();
+      saveBudget({ category: selectedCategory, amount: parseFloat(amount) });
+      onSave();
+      handleClose();
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('monthlyBudgets')}</h2>
-          <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">
-            <X className="h-6 w-6" />
-          </button>
-        </div>
+  const handleClose = () => {
+    setIsOpen(false);
+    // Delay actual close to allow animation to complete
+    setTimeout(onClose, 200);
+  };
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">{t('category')}</label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="w-full p-3 bg-slate-50 dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl focus:border-emerald-500 outline-none font-medium"
-            >
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>{t(cat)}</option>
-              ))}
-            </select>
-          </div>
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      handleClose();
+    }
+  };
 
-          <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">{t('totalAmount')}</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
-              <input
-                type="number"
-                min="0"
-                step="10"
-                value={amount}
-                onChange={(e) => setAmount(parseFloat(e.target.value))}
-                className="w-full pl-8 p-3 bg-slate-50 dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl focus:border-emerald-500 outline-none font-bold text-lg"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-slate-900 dark:bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-slate-800 dark:hover:bg-emerald-500 transition-colors flex items-center justify-center"
+  // Form content component (shared between Dialog and Sheet)
+  const FormContent = () => (
+    <motion.form
+      onSubmit={handleSubmit}
+      className="space-y-6"
+      variants={modalAnimation}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+    >
+      <div className="space-y-2">
+        <Label htmlFor="category" className="text-xs font-bold uppercase">
+          {t('category')}
+        </Label>
+        <Select value={selectedCategory} onValueChange={handleCategoryChange}>
+          <SelectTrigger
+            id="category"
+            className="w-full"
+            aria-label={t('category')}
           >
-            <Save className="h-5 w-5 mr-2" />
-            {t('save')}
-          </button>
-        </form>
+            <SelectValue placeholder={t('category')} />
+          </SelectTrigger>
+          <SelectContent>
+            {categories.map((cat) => (
+              <SelectItem key={cat} value={cat}>
+                {t(cat)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-    </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="amount" className="text-xs font-bold uppercase">
+          {t('totalAmount')}
+        </Label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">
+            $
+          </span>
+          <Input
+            id="amount"
+            type="number"
+            min="0"
+            step="10"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="pl-8 font-bold text-lg"
+            aria-label={t('totalAmount')}
+            aria-describedby="amount-description"
+          />
+        </div>
+        <p id="amount-description" className="sr-only">
+          Enter the budget amount for the selected category
+        </p>
+      </div>
+
+      <motion.div whileHover="hover" whileTap="tap" variants={scaleOnHover}>
+        <Button
+          type="submit"
+          className="w-full"
+          size="lg"
+          aria-label={`${t('save')} budget`}
+        >
+          <Save className="h-4 w-4 mr-2" strokeWidth={2} />
+          {t('save')}
+        </Button>
+      </motion.div>
+    </motion.form>
+  );
+
+  // Render Sheet for mobile, Dialog for desktop
+  if (isMobile) {
+    return (
+      <Sheet open={isOpen} onOpenChange={handleOpenChange}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl"
+          aria-describedby="budget-sheet-description"
+        >
+          <SheetHeader>
+            <SheetTitle>{t('monthlyBudgets')}</SheetTitle>
+          </SheetHeader>
+          <p id="budget-sheet-description" className="sr-only">
+            Set monthly budgets for different expense categories
+          </p>
+          {/* Visual handle indicator for mobile */}
+          <div className="mx-auto w-12 h-1.5 rounded-full bg-muted mb-4" />
+          <FormContent />
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="sm:max-w-md"
+        aria-describedby="budget-dialog-description"
+      >
+        <DialogHeader>
+          <DialogTitle>{t('monthlyBudgets')}</DialogTitle>
+        </DialogHeader>
+        <p id="budget-dialog-description" className="sr-only">
+          Set monthly budgets for different expense categories
+        </p>
+        <FormContent />
+      </DialogContent>
+    </Dialog>
   );
 };

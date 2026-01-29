@@ -30,6 +30,11 @@ The design maintains the existing React + TypeScript architecture while introduc
 - `cmdk` - Command menu component
 - `clsx` + `tailwind-merge` - Utility for conditional class merging
 
+**Custom Theme Colors** (for NeoCore mascot):
+- `void`: #050505 (Deepest Black)
+- `neon`: #CCFF00 (Cyber Lime)
+- `electric`: #7928CA (Secondary Logic Color)
+
 **Design System Structure**:
 ```
 src/
@@ -44,7 +49,8 @@ src/
 │   ├── layout/          # Layout wrappers
 │   │   ├── PageTransition.tsx
 │   │   ├── GlassHeader.tsx
-│   │   └── BottomSheet.tsx
+│   │   ├── BottomSheet.tsx
+│   │   └── NeoCore.tsx  # 3D animated mascot
 │   └── [existing components]
 ├── lib/
 │   ├── utils.ts         # cn() utility for class merging
@@ -395,7 +401,7 @@ export function FloatingActionButton({ icon: Icon, onClick, label, secondaryActi
 2. **PaywallModal** → Use Dialog with Card and Button components
 3. **SettingsModal** → Use Sheet (side drawer) with Form components
 4. **LoginScreen** → Use Card with Input and Button components
-5. **Dashboard** → Wrap with PageTransition, use Skeleton for loading states
+5. **Dashboard** → Wrap with PageTransition, use Skeleton for loading states, add NeoCore mascot
 6. **Scanner** → Add FAB for quick actions, use BottomSheet for results
 7. **ReviewForm** → Use Form components with validation
 8. **Onboarding** → Use Card with progress indicators and Button components
@@ -432,6 +438,107 @@ const isMobile = useMediaQuery("(max-width: 768px)");
     </DialogContent>
   </Dialog>
 )}
+```
+
+### NeoCore Mascot Component
+
+**NeoCore Component Interface**:
+```typescript
+export type NeoState = 'idle' | 'listening' | 'processing' | 'success';
+
+interface NeoCoreProps {
+  state: NeoState;
+  size?: number; // Size in pixels, default 120
+}
+
+export const NeoCore: React.FC<NeoCoreProps> = ({ state, size = 120 }) => {
+  // Pure CSS 3D cube with Framer Motion animations
+  // No Three.js or heavy 3D libraries required
+};
+```
+
+**Animation Variants by State**:
+
+```typescript
+const containerVariants = {
+  idle: {
+    rotateX: [20, 10, 20],
+    rotateY: [0, 360],
+    y: [0, -10, 0],
+    scale: 1,
+    transition: {
+      rotateY: { duration: 12, repeat: Infinity, ease: "linear" },
+      rotateX: { duration: 6, repeat: Infinity, ease: "easeInOut" },
+      y: { duration: 4, repeat: Infinity, ease: "easeInOut" }
+    }
+  },
+  listening: {
+    rotateX: 10,
+    rotateY: [0, 360],
+    scale: 1.15,
+    transition: {
+      rotateY: { duration: 20, repeat: Infinity, ease: "linear" },
+      scale: { duration: 0.8, yoyo: Infinity, ease: "easeInOut" } // Breathing
+    }
+  },
+  processing: {
+    rotateX: [0, 360],
+    rotateY: [0, -360],
+    scale: [0.9, 1.1, 0.9],
+    transition: {
+      rotateX: { duration: 1, repeat: Infinity, ease: "linear" },
+      rotateY: { duration: 1.5, repeat: Infinity, ease: "linear" },
+      scale: { duration: 0.2, repeat: Infinity } // Glitchy vibration
+    }
+  },
+  success: {
+    rotateX: 25,
+    rotateY: 45, // Locks into isometric view
+    scale: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 200, damping: 20 }
+  }
+};
+```
+
+**Visual Design**:
+- 3D cube constructed with 6 faces using CSS transforms
+- Border color changes based on state (neon lime for idle/listening, electric purple for processing)
+- Inner "circuit" details on each face for depth
+- Internal glowing core visible during listening state
+- Ground reflection with blur for visual anchoring
+- Perspective: 800px for 3D depth
+- Uses `transformStyle: 'preserve-3d'` for proper 3D rendering
+
+**Integration Pattern**:
+```typescript
+// Dashboard.tsx integration
+import { NeoCore, NeoState } from './components/layout/NeoCore';
+import { useState } from 'react';
+
+const [neoState, setNeoState] = useState<NeoState>('idle');
+
+return (
+  <div className="h-full flex flex-col items-center pt-12 relative bg-void text-white">
+    {/* Mascot Layer */}
+    <div className="flex flex-col items-center justify-center mb-8 z-10"
+         onClick={() => setNeoState('processing')}>
+      <NeoCore state={neoState} size={140} />
+      
+      {/* Speech Bubble */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-6 px-4 py-2 bg-neutral-900 border border-neutral-800 
+                   rounded-full text-xs font-mono text-neutral-400"
+      >
+        "Safe to spend. Don't ruin it."
+      </motion.div>
+    </div>
+    
+    {/* Rest of dashboard */}
+  </div>
+);
 ```
 
 ## Data Models
@@ -476,6 +583,30 @@ interface ThemeConfig {
   --border: 217.2 32.6% 17.5%;
   --ring: 212.7 26.8% 83.9%;
   --radius: 0.5rem;
+  
+  /* NeoCore custom colors */
+  --void: #050505;
+  --neon: #CCFF00;
+  --electric: #7928CA;
+}
+```
+
+**Tailwind Theme Extension** (for NeoCore):
+```javascript
+// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        void: '#050505',
+        neon: '#CCFF00',
+        electric: '#7928CA',
+      },
+      boxShadow: {
+        'neon-glow': '0 0 20px rgba(204, 255, 0, 0.3)',
+      }
+    }
+  }
 }
 ```
 

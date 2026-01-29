@@ -16,8 +16,48 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '.'),
+          '@': path.resolve(__dirname, './src'),
         }
-      }
+      },
+      build: {
+        // Enable code splitting
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              // Vendor chunks for better caching
+              'react-vendor': ['react', 'react-dom'],
+              'framer-motion': ['framer-motion'],
+              'charts': ['recharts', 'd3-scale', 'd3-shape', 'd3-array'],
+              'ui-components': [
+                '@radix-ui/react-dialog',
+                '@radix-ui/react-label',
+                '@radix-ui/react-select',
+                '@radix-ui/react-slot',
+              ],
+              'form-validation': ['react-hook-form', '@hookform/resolvers', 'zod'],
+              'icons': ['lucide-react'],
+            },
+          },
+        },
+        // Optimize chunk size
+        chunkSizeWarningLimit: 600,
+        // Enable minification
+        minify: 'esbuild',
+        // Source maps for production debugging (optional, can be disabled for smaller builds)
+        sourcemap: false,
+      },
+      // Optimize dependencies
+      optimizeDeps: {
+        include: [
+          'react',
+          'react-dom',
+          'framer-motion',
+          'lucide-react',
+          '@radix-ui/react-dialog',
+          '@radix-ui/react-label',
+          '@radix-ui/react-select',
+          '@radix-ui/react-slot',
+        ],
+      },
     };
 });
