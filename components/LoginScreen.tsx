@@ -1,12 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Receipt } from 'lucide-react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
 import { useTranslation } from '../utils/i18n';
-import { Language, AVATAR_URL } from '../types';
+import { Language } from '../types';
 import { PageTransition } from '../src/components/layout/PageTransition';
-import { Card, CardContent, CardFooter, CardHeader } from '../src/components/ui/card';
-import { Button } from '../src/components/ui/button';
-import { fadeInUp, scaleOnHover } from '../src/lib/animations';
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -15,121 +10,72 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, currentLang }) => {
   const t = useTranslation(currentLang);
-  const [currentMsgIndex, setCurrentMsgIndex] = useState(0);
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState('');
 
-  const messages = ['loginMsg1', 'loginMsg2', 'loginMsg3', 'loginMsg4'];
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentMsgIndex((prev) => (prev + 1) % messages.length);
-    }, 3500);
-    return () => clearInterval(interval);
-  }, []);
+  const handleContinue = () => {
+    if (!email.trim() || !email.includes('@')) {
+      setError(t('errorInvalidEmail'));
+      return;
+    }
+    setError('');
+    onLogin();
+  };
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        {/* Background Ambience */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 rounded-full blur-[100px]"></div>
-          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 rounded-full blur-[100px]"></div>
+      <div className="h-full w-full bg-bg flex flex-col px-6 pt-16 pb-10 safe-pb overflow-y-auto no-scrollbar">
+        <div className="flex flex-col items-center text-center gap-3 mb-10">
+          <span className="font-display text-[28px] text-text lowercase">
+            not<span className="text-accent-deep">aí</span>
+          </span>
+          <h1 className="font-display text-[28px] text-text mt-4">{t('loginTitle')}</h1>
+          <p className="text-[15px] text-muted">{t('loginSubtitle')}</p>
         </div>
 
-        <motion.div
-          variants={fadeInUp}
-          initial="initial"
-          animate="animate"
-          className="w-full max-w-md z-10"
-        >
-          <Card className="bg-slate-900/50 backdrop-blur-xl border-slate-800 shadow-2xl">
-            <CardHeader className="flex flex-col items-center text-center space-y-6 pt-8">
-              {/* App Logo */}
-              <div className="flex items-center space-x-2">
-                <div className="bg-emerald-500/20 p-2 rounded-xl">
-                  <Receipt className="h-6 w-6 text-emerald-400" />
-                </div>
-                <span className="text-xl font-bold text-white tracking-wide">
-                  not<span className="text-emerald-400">.</span>AÍ
-                </span>
-              </div>
+        <div className="flex flex-col gap-5 w-full max-w-sm mx-auto flex-1">
+          <label className="flex flex-col gap-2">
+            <span className="text-[11px] font-semibold text-muted">{t('loginEmailLabel')}</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t('loginEmailPlaceholder')}
+              className="w-full rounded-input bg-surface-2 border border-border px-4 py-4 text-[16px] text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+            {error && <span className="text-[13px] text-danger">{error}</span>}
+          </label>
 
-              {/* Character */}
-              <motion.div
-                className="relative w-40 h-40"
-                animate={{
-                  y: [0, -10, 0],
-                }}
-                transition={{
-                  duration: 4,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              >
-                <img
-                  src={AVATAR_URL}
-                  alt="Neo Assistant"
-                  className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                />
-              </motion.div>
-            </CardHeader>
+          <button
+            onClick={handleContinue}
+            className="h-[52px] rounded-pill bg-accent text-white font-bold text-[16px] active:brightness-95 transition-[filter]"
+          >
+            {t('loginContinue')}
+          </button>
 
-            <CardContent className="flex flex-col items-center text-center space-y-4 px-8">
-              {/* Dynamic Rotating Message */}
-              <div className="h-16 flex items-center justify-center w-full">
-                <motion.p
-                  key={currentMsgIndex}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.5 }}
-                  className="text-xl font-bold text-white"
-                >
-                  {t(messages[currentMsgIndex])}
-                </motion.p>
-              </div>
+          <div className="flex items-center gap-3 my-1">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-[13px] text-muted">{t('loginOr')}</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
 
-              {/* Google Button */}
-              <motion.div
-                className="w-full"
-                whileHover="hover"
-                whileTap="tap"
-                variants={scaleOnHover}
-              >
-                <Button
-                  onClick={onLogin}
-                  className="w-full bg-white text-slate-900 font-semibold py-6 px-4 rounded-xl hover:bg-slate-50 transition-colors"
-                  size="lg"
-                >
-                  <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  <span>{t('googleSignIn')}</span>
-                </Button>
-              </motion.div>
-            </CardContent>
+          <button
+            onClick={onLogin}
+            className="h-[52px] rounded-pill bg-surface-2 text-text font-bold text-[16px] flex items-center justify-center gap-2 active:brightness-95 transition-[filter]"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-text">
+              <path d="M21.6 12.23c0-.68-.06-1.33-.17-1.96H12v3.71h5.4a4.62 4.62 0 01-2 3.03v2.5h3.24c1.9-1.75 2.96-4.33 2.96-7.28z" fill="currentColor" opacity=".55" />
+              <path d="M12 22c2.7 0 4.96-.89 6.62-2.42l-3.24-2.5c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.75-5.59-4.12H3.05v2.58A10 10 0 0012 22z" fill="currentColor" opacity=".75" />
+              <path d="M6.41 13.92A6 6 0 016.09 12c0-.67.12-1.32.32-1.92V7.5H3.05A10 10 0 002 12c0 1.61.39 3.14 1.05 4.5l3.36-2.58z" fill="currentColor" opacity=".4" />
+              <path d="M12 6.58c1.47 0 2.79.5 3.83 1.49l2.87-2.87A9.96 9.96 0 0012 2a10 10 0 00-8.95 5.5l3.36 2.58C7.2 8.33 9.4 6.58 12 6.58z" fill="currentColor" opacity=".9" />
+            </svg>
+            <span>{t('googleSignIn')}</span>
+          </button>
+        </div>
 
-            <CardFooter className="flex justify-center pb-8">
-              <p className="text-xs text-slate-500">
-                {t('createAccount')} • Privacy Policy
-              </p>
-            </CardFooter>
-          </Card>
-        </motion.div>
+        <p className="text-[11px] text-center text-muted mt-8">
+          <span className="text-accent-deep">{t('loginTerms')}</span> · <span className="text-accent-deep">{t('loginPrivacy')}</span>
+        </p>
       </div>
     </PageTransition>
   );

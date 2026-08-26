@@ -1,45 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { Dashboard } from './components/Dashboard';
-import { Scanner } from './components/Scanner';
-import { ReviewForm } from './components/ReviewForm';
-import { BudgetModal } from './components/BudgetModal';
-import { SettingsModal } from './components/SettingsModal';
-import { AIAssistant } from './components/AIAssistant';
+import { Capture } from './components/Capture';
+import { Settings } from './components/Settings';
+import { Insights } from './components/Insights';
 import { SplashScreen } from './components/SplashScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { Onboarding } from './components/Onboarding';
 import { PaywallModal } from './components/PaywallModal';
 import { getExpenses, processRecurringExpenses, getUserProfile, saveUserProfile, updateUserProfile, checkTrialStatus, clearUserProfile } from './services/expenseService';
-import { Expense, AIReceiptResponse, Theme, Language, UserProfile } from './types';
-import { PieChart, ScanLine, User } from 'lucide-react';
+import { Expense, Theme, Language, UserProfile } from './types';
+import { Camera, Home as HomeIcon, PieChart, Settings as SettingsIcon } from 'lucide-react';
 import { useTranslation } from './utils/i18n';
 
-type View = 'dashboard' | 'scan' | 'review';
+type View = 'home' | 'insights' | 'settings' | 'capture';
 type AppState = 'splash' | 'login' | 'onboarding' | 'app';
 
 function App() {
   const [appState, setAppState] = useState<AppState>('splash');
   const [user, setUser] = useState<UserProfile | null>(null);
 
-  const [currentView, setCurrentView] = useState<View>('dashboard');
+  const [currentView, setCurrentView] = useState<View>('home');
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  
-  const [reviewData, setReviewData] = useState<AIReceiptResponse | Expense | null>(null);
-  const [reviewImage, setReviewImage] = useState<string | null>(null);
 
-  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
-  const [isSpecialOfferOpen, setIsSpecialOfferOpen] = useState(false);
 
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>('system');
   const [language, setLanguage] = useState<Language>('pt');
 
   const t = useTranslation(language);
 
   useEffect(() => {
-    document.documentElement.classList.add('dark');
-    
     const splashTimer = setTimeout(() => {
         let storedUser = getUserProfile();
         if (storedUser) {
@@ -48,6 +41,8 @@ function App() {
 
         if (storedUser) {
             setUser(storedUser);
+            setTheme(storedUser.themePreference || 'system');
+            setLanguage(storedUser.languagePreference || 'pt');
             if (storedUser.onboardingCompleted) {
                 setAppState('app');
             } else {
@@ -63,6 +58,21 @@ function App() {
 
     return () => clearTimeout(splashTimer);
   }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = () => {
+      const isDark = theme === 'dark' || (theme === 'system' && media.matches);
+      if (isDark) {
+        document.documentElement.dataset.theme = 'dark';
+      } else {
+        delete document.documentElement.dataset.theme;
+      }
+    };
+    applyTheme();
+    media.addEventListener('change', applyTheme);
+    return () => media.removeEventListener('change', applyTheme);
+  }, [theme]);
 
   const refreshExpenses = () => {
     setExpenses(getExpenses());
@@ -83,118 +93,151 @@ function App() {
       setAppState('onboarding');
   };
 
-  const handleOnboardingComplete = (data: Partial<UserProfile>, showOffer?: boolean) => {
+  const handleOnboardingComplete = (data: Partial<UserProfile>) => {
       if (user) {
           const updated = updateUserProfile(data);
           if (updated) setUser(updated);
           setAppState('app');
-          if (showOffer) setIsSpecialOfferOpen(true);
       }
   };
 
-  const handleScanComplete = (data: AIReceiptResponse, imageUrl: string) => {
-    setReviewData(data);
-    setReviewImage(imageUrl);
-    setCurrentView('review');
-  };
-
   const handleEditExpense = (expense: Expense) => {
-    setReviewData(expense);
-    setReviewImage(expense.receipt_image_url || null);
-    setCurrentView('review');
+    setEditingExpense(expense);
+    setCurrentView('capture');
   };
 
-  const handleSaveExpense = () => {
+  const handleSaveExpense = (saved: Expense) => {
     refreshExpenses();
-    setCurrentView('dashboard');
-    setReviewData(null);
-    setReviewImage(null);
+    setCurrentView('home');
+    setEditingExpense(null);
+    setHighlightedExpenseId(saved.id);
+    setTimeout(() => setHighlightedExpenseId(null), 1000);
+  };
+
+  const handleCancelCapture = () => {
+    setCurrentView('home');
+    setEditingExpense(null);
+  };
+
+  const handleUpdateUser = (updates: Partial<UserProfile>) => {
+      const updated = updateUserProfile(updates);
+      if (updated) setUser(updated);
   };
 
   const handleLogout = () => {
       setUser(null);
       setAppState('login');
-      setIsSettingsModalOpen(false);
-      setCurrentView('dashboard');
+      setCurrentView('home');
       clearUserProfile();
-  };
-
-  const handleSubscribe = () => {
-      if (user) {
-          const updated = updateUserProfile({ subscriptionStatus: 'premium' });
-          setUser(updated);
-          setIsPaywallOpen(false);
-          setIsSpecialOfferOpen(false);
-      }
   };
 
   const handleStartTrial = () => {
       if (user) {
-          const updated = updateUserProfile({ 
+          const updated = updateUserProfile({
               subscriptionStatus: 'trial',
               trialStartDate: new Date().toISOString()
           });
           setUser(updated);
-          setIsSpecialOfferOpen(false);
+          setIsPaywallOpen(false);
       }
   };
 
-  const handleNavigation = (view: View) => {
-      setCurrentView(view);
-  };
-
   const BottomNav = () => {
-    if (currentView === 'review' || currentView === 'scan') return null; 
+    if (currentView === 'capture') return null;
+
+    const tabs: { view: View; label: string; icon: React.ReactNode }[] = [
+      { view: 'home', label: t('navHome'), icon: <HomeIcon className="h-6 w-6" strokeWidth={2.5} /> },
+      { view: 'insights', label: t('navInsights'), icon: <PieChart className="h-6 w-6" strokeWidth={2.5} /> },
+      { view: 'settings', label: t('navSettings'), icon: <SettingsIcon className="h-6 w-6" strokeWidth={2.5} /> },
+    ];
 
     return (
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 glass-panel px-6 h-16 rounded-full flex items-center gap-12 z-40 shadow-2xl border-white/5">
-        <button onClick={() => setCurrentView('dashboard')} className={`flex flex-col items-center transition-all ${currentView === 'dashboard' ? 'text-energy-500 scale-110' : 'text-slate-600'}`}>
-          <PieChart className="h-6 w-6" />
-        </button>
-        {/* Bypass narrowing check as currentView is narrowed to 'dashboard' by the early return on line 150 */}
-        <button onClick={() => setCurrentView('scan')} className={`flex flex-col items-center transition-all ${(currentView as string) === 'scan' ? 'text-energy-500 scale-110' : 'text-slate-600'}`}>
-          <ScanLine className="h-6 w-6" />
-        </button>
-        <button onClick={() => setIsSettingsModalOpen(true)} className={`flex flex-col items-center text-slate-600 active:text-energy-500`}>
-          <User className="h-6 w-6" />
-        </button>
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border">
+        <div className="mx-auto max-w-lg h-20 px-6 flex items-center justify-between relative">
+          {tabs.slice(0, 2).map((tab) => (
+            <button
+              key={tab.view}
+              onClick={() => setCurrentView(tab.view)}
+              className={`flex flex-col items-center gap-1 min-w-[44px] min-h-[44px] justify-center ${currentView === tab.view ? 'text-accent-deep' : 'text-muted'}`}
+            >
+              {tab.icon}
+              <span className="text-[11px] font-semibold">{tab.label}</span>
+            </button>
+          ))}
+
+          <button
+            onClick={() => setCurrentView('capture')}
+            aria-label="Capture"
+            className="absolute left-1/2 -translate-x-1/2 -top-6 w-14 h-14 rounded-full bg-accent text-white flex items-center justify-center shadow-elevated"
+          >
+            <Camera className="h-6 w-6" strokeWidth={2.5} />
+          </button>
+
+          {tabs.slice(2).map((tab) => (
+            <button
+              key={tab.view}
+              onClick={() => setCurrentView(tab.view)}
+              className={`flex flex-col items-center gap-1 min-w-[44px] min-h-[44px] justify-center ${currentView === tab.view ? 'text-accent-deep' : 'text-muted'}`}
+            >
+              {tab.icon}
+              <span className="text-[11px] font-semibold">{tab.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     );
   };
 
-  if (appState === 'splash') return <SplashScreen />;
+  if (appState === 'splash') return <SplashScreen currentLang={language} />;
   if (appState === 'login') return <LoginScreen onLogin={handleLogin} currentLang={language} />;
   if (appState === 'onboarding') return <Onboarding onComplete={handleOnboardingComplete} currentLang={language} />;
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-slate-950 font-sans text-white">
-      <main className="mx-auto max-w-lg h-full relative mesh-gradient">
-        {currentView === 'dashboard' && (
-          <Dashboard 
-            expenses={expenses} 
-            onManageBudgets={() => setIsBudgetModalOpen(true)}
+    <div className="h-screen w-screen overflow-hidden bg-bg font-sans text-text">
+      <main className="mx-auto max-w-lg h-full relative">
+        {currentView === 'home' && (
+          <Dashboard
+            expenses={expenses}
+            user={user}
             onEditExpense={handleEditExpense}
+            onOpenSettings={() => setCurrentView('settings')}
+            onOpenInsights={() => setCurrentView('insights')}
+            currentLang={language}
+            highlightedExpenseId={highlightedExpenseId}
+          />
+        )}
+
+        {currentView === 'capture' && (
+          <Capture
+            initialExpense={editingExpense || undefined}
+            onSaveComplete={handleSaveExpense}
+            onCancel={handleCancelCapture}
             onShowPaywall={() => setIsPaywallOpen(true)}
-            onNavigate={handleNavigation}
             currentLang={language}
           />
         )}
-        {currentView === 'scan' && (
-          <Scanner onScanComplete={handleScanComplete} onCancel={() => setCurrentView('dashboard')} currentLang={language} />
+
+        {currentView === 'insights' && (
+          <Insights onNavigateHome={() => setCurrentView('home')} currentLang={language} onShowPaywall={() => setIsPaywallOpen(true)} />
         )}
-        {currentView === 'review' && reviewData && (
-          <ReviewForm initialData={reviewData} imageUrl={reviewImage || undefined} onSave={handleSaveExpense} onCancel={() => setCurrentView('dashboard')} currentLang={language} />
+
+        {currentView === 'settings' && (
+          <Settings
+            user={user}
+            onUpdateUser={handleUpdateUser}
+            onLogout={handleLogout}
+            theme={theme}
+            onThemeChange={setTheme}
+            currentLang={language}
+            onLangChange={setLanguage}
+            onShowPaywall={() => setIsPaywallOpen(true)}
+          />
         )}
-        
-        <AIAssistant onClose={() => setCurrentView('dashboard')} currentLang={language} onNavigate={handleNavigation} onShowPaywall={() => setIsPaywallOpen(true)} />
       </main>
 
       <BottomNav />
 
-      {isBudgetModalOpen && <BudgetModal onClose={() => setIsBudgetModalOpen(false)} onSave={refreshExpenses} currentLang={language} />}
-      {isSettingsModalOpen && <SettingsModal onClose={() => setIsSettingsModalOpen(false)} onLogout={handleLogout} currentTheme={theme} onThemeChange={setTheme} currentLang={language} onLangChange={setLanguage} onShowPaywall={() => setIsPaywallOpen(true)} />}
-      {isPaywallOpen && <PaywallModal onClose={() => setIsPaywallOpen(false)} onSubscribe={handleSubscribe} currentLang={language} />}
-      {isSpecialOfferOpen && <PaywallModal onClose={() => setIsSpecialOfferOpen(false)} onSubscribe={handleSubscribe} onStartTrial={handleStartTrial} currentLang={language} specialOffer={true} />}
+      {isPaywallOpen && <PaywallModal onClose={() => setIsPaywallOpen(false)} onStartTrial={handleStartTrial} currentLang={language} />}
     </div>
   );
 }

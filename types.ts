@@ -11,12 +11,10 @@ export const DEFAULT_CATEGORIES = [
   "Other"
 ];
 
-export const AVATAR_URL = "https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Man%20Technologist.png";
-
 export type RecurrenceFrequency = 'Weekly' | 'Monthly' | 'Yearly';
 
 export type Language = 'en' | 'pt';
-export type Theme = 'light' | 'dark';
+export type Theme = 'system' | 'light' | 'dark';
 export type SubscriptionStatus = 'free' | 'trial' | 'premium';
 
 export interface LineItem {
@@ -38,7 +36,9 @@ export interface UserProfile {
   monthlyBudget?: number;
   onboardingCompleted: boolean;
   currencyPreference: string;
-  
+  languagePreference?: Language;
+  themePreference?: Theme;
+
   // Subscription & Limits
   subscriptionStatus: SubscriptionStatus;
   trialStartDate?: string; // ISO Date

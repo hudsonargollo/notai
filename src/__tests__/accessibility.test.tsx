@@ -26,7 +26,6 @@ import { Label } from '@/components/ui/label';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import { GlassHeader } from '@/components/layout/GlassHeader';
 import { BottomSheet } from '@/components/layout/BottomSheet';
-import { FloatingActionButton } from '@/components/layout/FloatingActionButton';
 import { Plus, Home, Settings } from 'lucide-react';
 
 // Mock useIsMobile for BottomSheet tests
@@ -136,18 +135,6 @@ describe('Accessibility Tests - Native UI Overhaul', () => {
       expect(results.violations).toHaveLength(0);
     });
 
-    it('FloatingActionButton should have no accessibility violations', async () => {
-      const { container } = render(
-        <FloatingActionButton
-          icon={Plus}
-          onClick={() => {}}
-          label="Add new item"
-        />
-      );
-
-      const results = await axe(container);
-      expect(results.violations).toHaveLength(0);
-    });
   });
 
   describe('ARIA Attributes Verification', () => {

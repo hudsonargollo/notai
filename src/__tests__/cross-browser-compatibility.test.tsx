@@ -10,7 +10,6 @@
  * 
  * Key features tested:
  * - Backdrop-blur support and fallbacks
- * - CSS 3D transforms (NeoCore)
  * - Framer Motion animations
  * - Touch gestures
  * - Responsive behavior
@@ -19,7 +18,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { GlassHeader } from '../components/layout/GlassHeader';
-import { NeoCore } from '../components/layout/NeoCore';
 import { BottomSheet } from '../components/layout/BottomSheet';
 
 describe('Cross-Browser Compatibility Tests', () => {
@@ -74,100 +72,12 @@ describe('Cross-Browser Compatibility Tests', () => {
     });
   });
 
-  describe('CSS 3D Transforms (NeoCore)', () => {
-    it('should render 3D cube with preserve-3d', () => {
-      // All modern browsers support preserve-3d:
-      // - Chrome 12+ (2011)
-      // - Firefox 10+ (2012)
-      // - Safari 4+ (2009)
-      
-      const { container } = render(<NeoCore state="idle" />);
-      
-      const cube = container.querySelector('[style*="preserve-3d"]');
-      expect(cube).toBeInTheDocument();
-    });
-
-    it('should use perspective for 3D depth', () => {
-      // Perspective is well-supported across browsers
-      const { container } = render(<NeoCore state="idle" />);
-      
-      const perspectiveContainer = container.querySelector('[style*="perspective"]');
-      expect(perspectiveContainer).toBeInTheDocument();
-    });
-
-    it('should handle backface-visibility for cube faces', () => {
-      // backface-visibility prevents flickering in 3D transforms
-      // Supported in all modern browsers
-      
-      const { container } = render(<NeoCore state="idle" />);
-      
-      // Cube faces should have backface-visibility: hidden
-      // In React, this is set via inline styles with camelCase
-      // The actual CSS property will be applied correctly
-      const cubeContainer = container.querySelector('[data-testid="neo-core"]');
-      expect(cubeContainer).toBeInTheDocument();
-      
-      // Verify the component renders (backface-visibility is applied via inline styles)
-      expect(true).toBe(true); // Property is applied, visual testing required
-    });
-
-    it('should use transform3d for GPU acceleration', () => {
-      // transform3d triggers GPU acceleration in all browsers
-      // Better performance than 2D transforms
-      
-      const { container } = render(<NeoCore state="idle" />);
-      
-      // translateZ triggers 3D rendering context
-      const elements = container.querySelectorAll('[style*="translateZ"]');
-      expect(elements.length).toBeGreaterThan(0);
-    });
-
-    it('should work without vendor prefixes', () => {
-      // Modern browsers don't need -webkit-, -moz- prefixes
-      // Framer Motion handles any necessary prefixes
-      
-      expect(true).toBe(true); // Framer Motion handles this
-    });
-  });
-
   describe('Framer Motion Animation Support', () => {
-    it('should use CSS transforms for animations', () => {
-      // Framer Motion uses CSS transforms (GPU-accelerated)
-      // Supported in all modern browsers
-      
-      render(<NeoCore state="idle" />);
-      
-      // Framer Motion applies transforms via inline styles
-      expect(true).toBe(true); // Framer Motion handles cross-browser
-    });
-
     it('should respect prefers-reduced-motion', () => {
       // All modern browsers support prefers-reduced-motion
       // Framer Motion automatically respects this preference
-      
+
       // Users can disable animations via OS settings
-      expect(true).toBe(true); // Framer Motion handles this
-    });
-
-    it('should use spring physics across browsers', () => {
-      // Spring animations work consistently across browsers
-      // Framer Motion normalizes behavior
-      
-      render(<NeoCore state="success" />);
-      
-      // Spring transition should be applied
-      expect(true).toBe(true); // Framer Motion handles this
-    });
-
-    it('should handle rapid state changes without stacking', () => {
-      // Animation interruption should work consistently
-      const { rerender } = render(<NeoCore state="idle" />);
-      
-      // Rapidly change states
-      rerender(<NeoCore state="processing" />);
-      rerender(<NeoCore state="success" />);
-      
-      // Should not stack animations
       expect(true).toBe(true); // Framer Motion handles this
     });
   });
@@ -279,16 +189,8 @@ describe('Cross-Browser Compatibility Tests', () => {
       it('should work with Firefox scrollbar styling', () => {
         // Firefox uses different scrollbar properties
         // scrollbar-width, scrollbar-color
-        
-        expect(true).toBe(true); // CSS scrollbar styling
-      });
 
-      it('should handle Firefox transform rendering', () => {
-        // Firefox may render 3D transforms differently
-        // Use will-change for optimization
-        
-        render(<NeoCore state="idle" />);
-        expect(true).toBe(true); // Visual testing required
+        expect(true).toBe(true); // CSS scrollbar styling
       });
     });
 
@@ -392,16 +294,6 @@ describe('Cross-Browser Compatibility Tests', () => {
       
       // Solid background works without backdrop-blur
       expect(header).toHaveClass('bg-background/80');
-    });
-
-    it('should provide no-3d fallback', () => {
-      // If 3D transforms are not supported, show 2D version
-      // NeoCore should still be visible
-      
-      render(<NeoCore state="idle" />);
-      
-      const neoCore = screen.getByTestId('neo-core');
-      expect(neoCore).toBeInTheDocument();
     });
 
     it('should provide no-animation fallback', () => {

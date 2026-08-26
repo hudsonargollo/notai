@@ -1,316 +1,403 @@
-import React, { useMemo, useState, useEffect, memo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Asterisk, Receipt, ArrowDownRight, Minus, Plus } from 'lucide-react';
 import { Expense, Budget, Language, UserProfile } from '../types';
-import { CreditCard, Zap, Crown, Search, TrendingUp, Target, ArrowUpRight, Camera, ShoppingBag, Utensils, Plane, Smartphone, Plus } from 'lucide-react';
-import { getBudgets, getUserProfile } from '../services/expenseService';
+import { getBudgets, getCategories, saveBudget } from '../services/expenseService';
 import { useTranslation } from '../utils/i18n';
-import { BarChart, Bar, ResponsiveContainer, XAxis, Tooltip, Cell } from 'recharts';
-import { PageTransition } from '../src/components/layout/PageTransition';
-import { GlassHeader } from '../src/components/layout/GlassHeader';
-import { NeoCore, NeoState } from '../src/components/layout/NeoCore';
-import { Skeleton } from '../src/components/ui/skeleton';
-import { scaleOnHover } from '../src/lib/animations';
 
 interface DashboardProps {
   expenses: Expense[];
-  onManageBudgets: () => void;
+  user: UserProfile | null;
   onEditExpense: (expense: Expense) => void;
-  onShowPaywall: () => void;
-  onNavigate: (view: 'dashboard' | 'scan') => void;
+  onOpenSettings: () => void;
+  onOpenInsights: () => void;
   currentLang: Language;
-  isLoading?: boolean;
+  highlightedExpenseId?: string | null;
 }
 
-// Memoized BentoCard to prevent unnecessary re-renders
-const BentoCard = memo(({ children, className, onClick, delay = 0 }: { children?: React.ReactNode; className?: string; onClick?: () => void; delay?: number }) => (
-  <motion.div 
-    initial={{ opacity: 0, y: 15 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay, type: "spring", stiffness: 300, damping: 25 }}
-    onClick={onClick}
-    whileHover={onClick ? "hover" : undefined}
-    whileTap={onClick ? "tap" : undefined}
-    variants={onClick ? scaleOnHover : undefined}
-    className={`glass-panel rounded-[1.8rem] p-5 shadow-xl flex flex-col border border-white/5 transition-all relative overflow-hidden group ${className}`}
-  >
-    {children}
-  </motion.div>
-));
+const format = (str: string, vars: Record<string, string | number>) =>
+  Object.entries(vars).reduce((acc, [k, v]) => acc.replace(`{${k}}`, String(v)), str);
 
-BentoCard.displayName = 'BentoCard';
+const formatNumber = (n: number, currentLang: Language) =>
+  n.toLocaleString(currentLang === 'pt' ? 'pt-BR' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// Memoized speech bubble component for NeoCore
-const SpeechBubble = memo(({ message }: { message: string }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.3, type: "spring", stiffness: 300, damping: 25 }}
-    className="mt-6 px-4 py-2 bg-neutral-900 border border-neutral-800 rounded-full text-xs font-mono text-neutral-400 max-w-xs text-center"
-  >
-    {message}
-  </motion.div>
-));
+const formatAmount = (n: number, currentLang: Language) => `R$ ${formatNumber(n, currentLang)}`;
 
-SpeechBubble.displayName = 'SpeechBubble';
-
-// Memoized expense item to prevent re-renders of unchanged items
-const ExpenseItem = memo(({ 
-  expense, 
-  onEdit, 
-  t, 
-  index 
-}: { 
-  expense: Expense; 
-  onEdit: (expense: Expense) => void; 
-  t: (key: string) => string;
-  index: number;
-}) => (
-  <motion.div 
-    initial={{ opacity: 0, x: -10 }}
-    animate={{ opacity: 1, x: 0 }}
-    transition={{ delay: 0.5 + (index * 0.04) }}
-    key={expense.id} 
-    onClick={() => onEdit(expense)}
-    whileHover="hover"
-    whileTap="tap"
-    variants={scaleOnHover}
-    className="flex items-center justify-between p-3.5 rounded-2xl glass-panel border-white/5 bg-white/[0.01] hover:bg-white/[0.04] transition-all group cursor-pointer"
-  >
-    <div className="flex items-center gap-3.5 overflow-hidden">
-      <div className="w-9 h-9 flex-shrink-0 rounded-xl bg-slate-900/50 flex items-center justify-center border border-white/5 group-hover:border-energy-500/20 transition-all">
-        {expense.category === 'Food & Dining' ? <Utensils className="text-orange-400 h-4 w-4" strokeWidth={2} /> :
-         expense.category === 'Transport' ? <Plane className="text-blue-400 h-4 w-4" strokeWidth={2} /> :
-         expense.category === 'Bills & Utilities' ? <Smartphone className="text-purple-400 h-4 w-4" strokeWidth={2} /> :
-         <CreditCard className="text-slate-500 h-4 w-4" strokeWidth={2} />}
-      </div>
-      <div className="overflow-hidden">
-        <p className="font-black text-[13px] text-white truncate leading-none mb-1">{expense.merchant_name}</p>
-        <span className="text-[8px] uppercase font-bold text-slate-600 tracking-wider">{t(expense.category)}</span>
-      </div>
-    </div>
-    <div className="text-right flex-shrink-0 ml-2">
-      <p className="font-black text-[14px] text-white leading-none">R$ {expense.amount.toFixed(2)}</p>
-      <p className="text-[7px] text-slate-700 font-bold mt-1 uppercase">{new Date(expense.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</p>
-    </div>
-  </motion.div>
-));
-
-ExpenseItem.displayName = 'ExpenseItem';
-
-export const Dashboard: React.FC<DashboardProps> = memo(({ expenses, onManageBudgets, onEditExpense, onShowPaywall, onNavigate, currentLang, isLoading = false }) => {
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [neoState, setNeoState] = useState<NeoState>('idle');
-  const t = useTranslation(currentLang);
+const AnimatedAmount: React.FC<{ value: number; currentLang: Language }> = ({ value, currentLang }) => {
+  const [display, setDisplay] = useState(0);
 
   useEffect(() => {
-    setUserProfile(getUserProfile());
-  }, [expenses]);
-
-  // Simulate app events affecting NeoCore state
-  useEffect(() => {
-    // When data is loading, set to processing
-    if (isLoading) {
-      setNeoState('processing');
-    } else if (expenses.length > 0) {
-      // When data loads successfully, show success briefly then return to idle
-      setNeoState('success');
-      const timer = setTimeout(() => setNeoState('idle'), 2000);
-      return () => clearTimeout(timer);
-    } else {
-      setNeoState('idle');
+    const reduceMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      setDisplay(value);
+      return;
     }
-  }, [isLoading, expenses.length]);
+    let start: number | null = null;
+    let raf = 0;
+    const duration = 400;
+    const step = (ts: number) => {
+      if (start === null) start = ts;
+      const progress = Math.min((ts - start) / duration, 1);
+      setDisplay(value * progress);
+      if (progress < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
 
-  // Memoize stats calculation to prevent recalculation on every render
+  return <span className="tabular-nums">{formatAmount(display, currentLang)}</span>;
+};
+
+interface BudgetRowProps {
+  label: string;
+  spent: number;
+  limit: number;
+  editing: boolean;
+  onAdjust: (delta: number) => void;
+  onSet: (amount: number) => void;
+  currentLang: Language;
+  t: (key: string) => string;
+}
+
+const BudgetRow: React.FC<BudgetRowProps> = ({ label, spent, limit, editing, onAdjust, onSet, currentLang, t }) => {
+  const pct = limit > 0 ? Math.min((spent / limit) * 100, 100) : 0;
+  const over = limit > 0 && spent > limit;
+  const holdRef = useRef<{ timeout?: ReturnType<typeof setTimeout>; interval?: ReturnType<typeof setInterval> }>({});
+
+  const stopHold = () => {
+    if (holdRef.current.timeout) clearTimeout(holdRef.current.timeout);
+    if (holdRef.current.interval) clearInterval(holdRef.current.interval);
+    holdRef.current = {};
+  };
+
+  const startHold = (delta: number) => {
+    onAdjust(delta);
+    let ticks = 0;
+    holdRef.current.timeout = setTimeout(() => {
+      holdRef.current.interval = setInterval(() => {
+        onAdjust(delta);
+        ticks += 1;
+        if (ticks === 8 && holdRef.current.interval) {
+          clearInterval(holdRef.current.interval);
+          holdRef.current.interval = setInterval(() => onAdjust(delta), 45);
+        }
+      }, 130);
+    }, 450);
+  };
+
+  useEffect(() => () => stopHold(), []);
+
+  return (
+    <div className="py-3">
+      <div className="flex items-center justify-between gap-3 mb-1.5">
+        <span className="text-[15px] font-semibold text-text">{label}</span>
+        {editing ? (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="-"
+              onMouseDown={() => startHold(-50)}
+              onMouseUp={stopHold}
+              onMouseLeave={stopHold}
+              onTouchStart={() => startHold(-50)}
+              onTouchEnd={stopHold}
+              className="w-11 h-11 rounded-full bg-surface-2 flex items-center justify-center text-text active:scale-95 transition-transform"
+            >
+              <Minus className="h-4 w-4" strokeWidth={2.5} />
+            </button>
+            <input
+              type="number"
+              value={limit}
+              onChange={(e) => onSet(Math.max(0, Number(e.target.value) || 0))}
+              className="w-20 text-center text-[15px] font-bold tabular-nums bg-surface-2 rounded-input py-2 outline-none focus:ring-2 focus:ring-accent"
+              aria-label={label}
+            />
+            <button
+              type="button"
+              aria-label="+"
+              onMouseDown={() => startHold(50)}
+              onMouseUp={stopHold}
+              onMouseLeave={stopHold}
+              onTouchStart={() => startHold(50)}
+              onTouchEnd={stopHold}
+              className="w-11 h-11 rounded-full bg-surface-2 flex items-center justify-center text-text active:scale-95 transition-transform"
+            >
+              <Plus className="h-4 w-4" strokeWidth={2.5} />
+            </button>
+          </div>
+        ) : (
+          <span className={`text-[13px] tabular-nums ${over ? 'text-danger' : 'text-muted'}`}>
+            {formatAmount(spent, currentLang)} / {formatAmount(limit, currentLang)}
+          </span>
+        )}
+      </div>
+      <div className="h-1.5 rounded-pill bg-surface-2 overflow-hidden">
+        <div
+          className={`h-full rounded-pill ${over ? 'bg-danger' : 'bg-accent2'}`}
+          style={{ width: `${limit > 0 ? pct : 0}%` }}
+        />
+      </div>
+      {over && (
+        <p className="text-[11px] text-danger mt-1">{format(t('homeBudgetsOverBy'), { amount: (spent - limit).toFixed(2) })}</p>
+      )}
+    </div>
+  );
+};
+
+const TransactionRow: React.FC<{
+  expense: Expense;
+  onEdit: (e: Expense) => void;
+  currentLang: Language;
+  t: (k: string) => string;
+  highlighted?: boolean;
+}> = ({ expense, onEdit, currentLang, t, highlighted }) => {
+  const dateStr = new Date(`${expense.date}T00:00:00`).toLocaleDateString(currentLang === 'pt' ? 'pt-BR' : 'en-US', {
+    day: '2-digit',
+    month: 'short',
+  });
+
+  return (
+    <button
+      type="button"
+      onClick={() => onEdit(expense)}
+      className={`w-full flex items-center justify-between gap-3 py-3 px-2 -mx-2 rounded-card border-b border-border last:border-b-0 text-left min-h-[56px] transition-colors duration-500 ${
+        highlighted ? 'bg-accent-soft' : ''
+      }`}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-9 h-9 rounded-full bg-surface-2 flex items-center justify-center flex-shrink-0">
+          <Receipt className="h-4 w-4 text-muted" strokeWidth={2.5} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[15px] font-semibold text-text truncate">{expense.merchant_name}</p>
+          <p className="text-[13px] text-muted truncate">{t(expense.category)}</p>
+        </div>
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="text-[15px] font-bold text-text tabular-nums">{formatAmount(expense.amount, currentLang)}</p>
+        <p className="text-[11px] text-muted">{dateStr}</p>
+      </div>
+    </button>
+  );
+};
+
+export const Dashboard: React.FC<DashboardProps> = ({
+  expenses,
+  user,
+  onEditExpense,
+  onOpenSettings,
+  onOpenInsights,
+  currentLang,
+  highlightedExpenseId,
+}) => {
+  const t = useTranslation(currentLang);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [editingBudgets, setEditingBudgets] = useState(false);
+  const [showAllBudgets, setShowAllBudgets] = useState(false);
+  const [showAllRecent, setShowAllRecent] = useState(false);
+
+  useEffect(() => {
+    setCategories(getCategories());
+    setBudgets(getBudgets());
+  }, []);
+
+  const now = useMemo(() => new Date(), []);
+  const locale = currentLang === 'pt' ? 'pt-BR' : 'en-US';
+  const rawMonthLabel = now.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+  const monthLabel = rawMonthLabel.charAt(0).toUpperCase() + rawMonthLabel.slice(1);
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysLeft = daysInMonth - now.getDate();
+
   const stats = useMemo(() => {
-    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+
     let totalMonthlySpent = 0;
-    const monthlyCategoryTotals: Record<string, number> = {};
-    expenses.forEach(e => {
+    let totalLastMonthSpent = 0;
+    const spentByCategory: Record<string, number> = {};
+
+    expenses.forEach((e) => {
       if (e.date >= startOfMonth) {
-        monthlyCategoryTotals[e.category] = (monthlyCategoryTotals[e.category] || 0) + e.amount;
         totalMonthlySpent += e.amount;
+        spentByCategory[e.category] = (spentByCategory[e.category] || 0) + e.amount;
+      } else if (e.date >= startOfLastMonth && e.date < startOfMonth) {
+        totalLastMonthSpent += e.amount;
       }
     });
 
-    const chartData = Object.entries(monthlyCategoryTotals).map(([cat, amount]) => ({
-      name: t(cat),
-      amount
-    })).sort((a, b) => b.amount - a.amount);
+    return { totalMonthlySpent, totalLastMonthSpent, spentByCategory };
+  }, [expenses, now]);
 
-    return { totalMonthlySpent, chartData };
-  }, [expenses, t]);
+  const insight = useMemo(() => {
+    if (stats.totalLastMonthSpent <= 0) return null;
+    const diffPct = Math.round(((stats.totalMonthlySpent - stats.totalLastMonthSpent) / stats.totalLastMonthSpent) * 100);
+    if (diffPct === 0) return null;
+    const key = diffPct > 0 ? 'insightMonthAboveLast' : 'insightMonthBelowLast';
+    return format(t(key), { pct: Math.abs(diffPct) });
+  }, [stats, t]);
 
-  // Memoize speech bubble message to prevent recalculation
-  const speechBubbleMessage = useMemo(() => {
-    switch (neoState) {
-      case 'listening':
-        return '"Estou ouvindo..."';
-      case 'processing':
-        return '"Processando dados..."';
-      case 'success':
-        return '"Tudo certo!"';
-      default:
-        return '"Safe to spend. Don\'t ruin it."';
-    }
-  }, [neoState]);
+  const budgetRows = useMemo(() => {
+    const rows = categories.map((category) => {
+      const budget = budgets.find((b) => b.category === category);
+      return { category, limit: budget?.amount ?? 0, spent: stats.spentByCategory[category] ?? 0 };
+    });
+    const withActivity = rows.filter((r) => r.limit > 0 || r.spent > 0).sort((a, b) => b.spent - a.spent);
+    return withActivity.length > 0 ? withActivity : rows;
+  }, [categories, budgets, stats]);
 
-  // Memoize callbacks to prevent re-renders
-  const handleNeoClick = useCallback(() => {
-    setNeoState('listening');
-    setTimeout(() => setNeoState('idle'), 3000);
-  }, []);
+  const visibleBudgetRows = showAllBudgets ? budgetRows : budgetRows.slice(0, 3);
 
-  const handleScanClick = useCallback(() => {
-    onNavigate('scan');
-  }, [onNavigate]);
+  const handleAdjustBudget = (category: string, delta: number) => {
+    setBudgets((prev) => {
+      const idx = prev.findIndex((b) => b.category === category);
+      const current = idx !== -1 ? prev[idx].amount : 0;
+      const next = Math.max(0, current + delta);
+      saveBudget({ category, amount: next });
+      if (idx !== -1) {
+        const copy = [...prev];
+        copy[idx] = { category, amount: next };
+        return copy;
+      }
+      return [...prev, { category, amount: next }];
+    });
+  };
 
-  const handlePaywallClick = useCallback(() => {
-    onShowPaywall();
-  }, [onShowPaywall]);
+  const handleSetBudget = (category: string, amount: number) => {
+    setBudgets((prev) => {
+      const idx = prev.findIndex((b) => b.category === category);
+      saveBudget({ category, amount });
+      if (idx !== -1) {
+        const copy = [...prev];
+        copy[idx] = { category, amount };
+        return copy;
+      }
+      return [...prev, { category, amount }];
+    });
+  };
+
+  const sortedExpenses = expenses;
+  const visibleExpenses = showAllRecent ? sortedExpenses : sortedExpenses.slice(0, 6);
+  const firstName = user?.name?.split(' ')[0] || '';
+  const monthlyTarget = user?.monthlyBudget ?? 0;
+  const heroPct = monthlyTarget > 0 ? Math.min((stats.totalMonthlySpent / monthlyTarget) * 100, 100) : 0;
+  const heroOver = monthlyTarget > 0 && stats.totalMonthlySpent > monthlyTarget;
 
   return (
-    <PageTransition>
-      <div className="h-full flex flex-col overflow-hidden">
-        {/* GlassHeader for navigation */}
-        <GlassHeader
-          title="Painel Principal"
-          subtitle={`Olá, ${userProfile?.name?.split(' ')[0] || 'User'}`}
-          actions={
-            <div className="flex gap-2">
-              <motion.button 
-                whileHover="hover"
-                whileTap="tap"
-                variants={scaleOnHover}
-                onClick={handleScanClick} 
-                className="p-2.5 glass-panel rounded-2xl border-energy-500/20 bg-energy-500/5 transition-all"
-              >
-                <Camera className="h-6 w-6 text-energy-500" strokeWidth={2} />
-              </motion.button>
-              <motion.button 
-                whileHover="hover"
-                whileTap="tap"
-                variants={scaleOnHover}
-                onClick={handlePaywallClick} 
-                className="p-2.5 glass-panel rounded-2xl border-white/5 transition-all"
-              >
-                <Crown className="h-6 w-6 text-amber-500 fill-amber-500/10" strokeWidth={2} />
-              </motion.button>
-            </div>
-          }
-        />
-
-        {/* NeoCore Mascot Hero Section */}
-        <div className="flex flex-col items-center justify-center py-8 bg-gradient-to-b from-void/50 to-transparent">
-          <NeoCore 
-            state={neoState} 
-            size={140}
-            onClick={handleNeoClick}
-          />
-          <SpeechBubble message={speechBubbleMessage} />
+    <div className="h-full w-full overflow-y-auto no-scrollbar bg-bg">
+      <div className="px-5 pt-6 pb-3 flex items-start justify-between">
+        <div>
+          <h1 className="font-display text-[28px] leading-tight text-text">{format(t('homeGreeting'), { name: firstName })}</h1>
+          <p className="text-[13px] text-muted mt-0.5">{monthLabel}</p>
         </div>
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          aria-label={t('navSettings')}
+          className="w-10 h-10 rounded-full bg-surface-2 flex items-center justify-center text-text font-bold flex-shrink-0"
+        >
+          {firstName ? firstName[0].toUpperCase() : 'U'}
+        </button>
+      </div>
 
-        {/* Main Content */}
-        <div className="flex-1 p-5 pb-28 overflow-hidden">
-          <div className="flex-1 grid grid-cols-2 gap-4 min-h-0 overflow-hidden">
-            {/* Bento: Large Spending Card */}
-            {isLoading ? (
-              <div className="col-span-2 h-[150px]">
-                <Skeleton className="w-full h-full rounded-[1.8rem]" />
+      {expenses.length === 0 ? (
+        <div className="px-5 pt-16 flex flex-col items-center text-center">
+          <h2 className="font-display text-[22px] text-text mb-2">{t('emptyTransactionsTitle')}</h2>
+          <p className="text-[15px] text-muted mb-6">{t('emptyTransactions')}</p>
+          <ArrowDownRight className="h-6 w-6 text-muted" strokeWidth={2} />
+        </div>
+      ) : (
+        <div className="px-5 pb-32 flex flex-col gap-5">
+          <div className="bg-surface rounded-card p-5">
+            <p className="text-[13px] text-muted mb-1">{format(t('homeHeroLabel'), { month: monthLabel })}</p>
+            <div className="font-display text-[40px] leading-none text-text mb-3">
+              <AnimatedAmount value={stats.totalMonthlySpent} currentLang={currentLang} />
+            </div>
+            <div className="h-1.5 rounded-pill bg-surface-2 overflow-hidden mb-2">
+              <div className={`h-full rounded-pill ${heroOver ? 'bg-danger' : 'bg-accent2'}`} style={{ width: `${heroPct}%` }} />
+            </div>
+            <p className="text-[13px] text-muted">
+              {format(t('homeHeroSub'), { target: formatNumber(monthlyTarget, currentLang) })} · {daysLeft} {currentLang === 'pt' ? 'dias' : 'days'}
+            </p>
+          </div>
+
+          {insight && (
+            <button
+              type="button"
+              onClick={onOpenInsights}
+              className="text-left bg-accent2-soft rounded-card p-5 flex gap-3"
+            >
+              <Asterisk className="h-[18px] w-[18px] text-accent2-deep flex-shrink-0 mt-0.5" strokeWidth={2.5} />
+              <div>
+                <p className="text-[15px] text-text">{insight}</p>
+                <p className="text-[11px] text-accent2-deep mt-2">Insight · {t('insightsFooter')}</p>
               </div>
-            ) : (
-              <BentoCard className="col-span-2 h-[150px] justify-between bg-gradient-to-br from-slate-900/50 to-slate-950/50" delay={0.1}>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-slate-500 font-black text-[9px] uppercase tracking-widest mb-1 opacity-70">Gasto este Mês</p>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-white tracking-tighter">R$ {stats.totalMonthlySpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  </div>
-                  <div className="bg-trust-500/10 p-2 rounded-xl">
-                    <TrendingUp className="text-trust-500 h-4 w-4" strokeWidth={2} />
-                  </div>
-                </div>
-                
-                <div className="h-[45px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stats.chartData.slice(0, 5)}>
-                      <Bar dataKey="amount" radius={[5, 5, 0, 0]}>
-                        {stats.chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={index === 0 ? 'oklch(0.75 0.18 100)' : 'rgba(255,255,255,0.06)'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </BentoCard>
+            </button>
+          )}
+
+          <div>
+            <div className="flex items-center justify-between mb-2 px-1">
+              <h3 className="text-[15px] font-bold text-text">{t('homeBudgetsTitle')}</h3>
+              <button
+                type="button"
+                onClick={() => setEditingBudgets((v) => !v)}
+                className="text-[13px] font-bold text-accent-deep min-h-[44px] px-2"
+              >
+                {editingBudgets ? t('homeBudgetsDone') : t('homeBudgetsEdit')}
+              </button>
+            </div>
+            {editingBudgets && <p className="text-[11px] text-muted mb-2 px-1">{t('homeBudgetsHint')}</p>}
+            <div className="bg-surface rounded-card px-5 divide-y divide-border">
+              {visibleBudgetRows.map((row) => (
+                <BudgetRow
+                  key={row.category}
+                  label={t(row.category)}
+                  spent={row.spent}
+                  limit={row.limit}
+                  editing={editingBudgets}
+                  onAdjust={(delta) => handleAdjustBudget(row.category, delta)}
+                  onSet={(amount) => handleSetBudget(row.category, amount)}
+                  currentLang={currentLang}
+                  t={t}
+                />
+              ))}
+            </div>
+            {budgetRows.length > 3 && (
+              <button
+                type="button"
+                onClick={() => setShowAllBudgets((v) => !v)}
+                className="text-[13px] font-bold text-accent-deep mt-2 px-1 min-h-[44px]"
+              >
+                {showAllBudgets ? t('homeBudgetsEdit') : t('homeBudgetsSeeAll')}
+              </button>
             )}
+          </div>
 
-            {/* Bento: Small Interaction Cards */}
-            {isLoading ? (
-              <>
-                <Skeleton className="h-[120px] rounded-[1.8rem]" />
-                <Skeleton className="h-[120px] rounded-[1.8rem]" />
-              </>
-            ) : (
-              <>
-                <BentoCard className="justify-center items-center text-center group cursor-pointer hover:bg-white/5" onClick={onManageBudgets} delay={0.2}>
-                  <Target className="text-growth-500 h-6 w-6 mb-3 group-hover:scale-110 transition-transform" strokeWidth={2} />
-                  <h4 className="font-black text-xs text-white">Metas</h4>
-                  <ArrowUpRight className="absolute top-3 right-3 h-4 w-4 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={2} />
-                </BentoCard>
-
-                <BentoCard className="justify-center items-center text-center group hover:bg-white/5" delay={0.3}>
-                  <Zap className="text-energy-500 h-6 w-6 mb-3 group-hover:scale-110 transition-transform" strokeWidth={2} />
-                  <h4 className="font-black text-xs text-white">Neo Hub</h4>
-                </BentoCard>
-              </>
+          <div>
+            <h3 className="text-[15px] font-bold text-text mb-2 px-1">{t('homeRecentTitle')}</h3>
+            <div className="bg-surface rounded-card px-5">
+              {visibleExpenses.map((expense) => (
+                <TransactionRow
+                  key={expense.id}
+                  expense={expense}
+                  onEdit={onEditExpense}
+                  currentLang={currentLang}
+                  t={t}
+                  highlighted={expense.id === highlightedExpenseId}
+                />
+              ))}
+            </div>
+            {sortedExpenses.length > 6 && (
+              <button
+                type="button"
+                onClick={() => setShowAllRecent((v) => !v)}
+                className="text-[13px] font-bold text-accent-deep mt-2 px-1 min-h-[44px]"
+              >
+                {showAllRecent ? t('homeBudgetsEdit') : t('homeRecentSeeAll')}
+              </button>
             )}
-
-            {/* Bento: Activity Feed - Scrollable internally */}
-            <BentoCard className="col-span-2 flex-1 min-h-0 flex flex-col bg-slate-900/30" delay={0.4}>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Últimas Transações</h3>
-                <div className="flex gap-2">
-                  <Search className="h-4 w-4 text-slate-700" strokeWidth={2} />
-                </div>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto no-scrollbar space-y-2.5">
-                {isLoading ? (
-                  // Skeleton loaders for transactions
-                  <div className="space-y-2.5">
-                    {[...Array(5)].map((_, i) => (
-                      <Skeleton key={i} className="h-[60px] w-full rounded-2xl" />
-                    ))}
-                  </div>
-                ) : (
-                  <AnimatePresence>
-                    {expenses.length === 0 ? (
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center py-6 opacity-20">
-                        <ShoppingBag className="h-6 w-6 mb-2" strokeWidth={2} />
-                        <p className="text-[9px] font-black uppercase tracking-widest">Sem Registros</p>
-                      </motion.div>
-                    ) : (
-                      expenses.map((expense, i) => (
-                        <ExpenseItem
-                          key={expense.id}
-                          expense={expense}
-                          onEdit={onEditExpense}
-                          t={t}
-                          index={i}
-                        />
-                      ))
-                    )}
-                  </AnimatePresence>
-                )}
-              </div>
-            </BentoCard>
           </div>
         </div>
-      </div>
-    </PageTransition>
+      )}
+    </div>
   );
-});
-
-Dashboard.displayName = 'Dashboard';
+};

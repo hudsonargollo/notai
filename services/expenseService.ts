@@ -76,7 +76,7 @@ export const checkTrialStatus = (): UserProfile | null => {
     const diffTime = Math.abs(now.getTime() - start.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
-    if (diffDays > 3) {
+    if (diffDays > 14) {
        // Expire Trial
        const updated = { ...user, subscriptionStatus: 'free' as const };
        saveUserProfile(updated);
@@ -96,7 +96,7 @@ export const incrementAIInteraction = (): boolean => {
         return true;
     }
 
-    if ((user.aiInteractionCount || 0) >= 5) {
+    if ((user.aiInteractionCount || 0) >= 40) {
         return false;
     }
 
@@ -107,6 +107,13 @@ export const incrementAIInteraction = (): boolean => {
 
 export const clearUserProfile = () => {
     localStorage.removeItem(USER_PROFILE_KEY);
+};
+
+export const clearAllData = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(BUDGET_KEY);
+    localStorage.removeItem(CATEGORIES_KEY);
+    localStorage.removeItem(CHAT_HISTORY_KEY);
 };
 
 // --- Expense Management ---
