@@ -561,7 +561,7 @@ export const Capture: React.FC<CaptureProps> = ({ initialExpense, onSaveComplete
         <button
           type="button"
           onClick={() => setShowFullImage(false)}
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6"
+          className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center p-6"
         >
           <img src={capturedImage} alt="" className="max-h-full max-w-full object-contain rounded-card" />
         </button>

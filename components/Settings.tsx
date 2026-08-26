@@ -62,7 +62,7 @@ const ConfirmSheet: React.FC<{
   onConfirm: () => void;
   onCancel: () => void;
 }> = ({ title, body, confirmLabel, cancelLabel, onConfirm, onCancel }) => (
-  <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true">
+  <div className="absolute inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true">
     <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
     <div className="relative w-full max-w-lg bg-surface rounded-t-sheet p-6 shadow-elevated">
       <div className="w-9 h-1 rounded-pill bg-border mx-auto mb-4" />

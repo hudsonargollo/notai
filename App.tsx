@@ -152,8 +152,8 @@ function App() {
     ];
 
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border">
-        <div className="mx-auto max-w-lg h-20 px-6 flex items-center justify-between relative">
+      <div className="absolute bottom-0 left-0 right-0 z-40 bg-surface border-t border-border">
+        <div className="h-20 px-6 flex items-center justify-between relative">
           {tabs.slice(0, 2).map((tab) => (
             <button
               key={tab.view}
@@ -188,56 +188,70 @@ function App() {
     );
   };
 
-  if (appState === 'splash') return <SplashScreen currentLang={language} />;
-  if (appState === 'login') return <LoginScreen onLogin={handleLogin} currentLang={language} />;
-  if (appState === 'onboarding') return <Onboarding onComplete={handleOnboardingComplete} currentLang={language} />;
+  let content: React.ReactNode;
+
+  if (appState === 'splash') {
+    content = <SplashScreen currentLang={language} />;
+  } else if (appState === 'login') {
+    content = <LoginScreen onLogin={handleLogin} currentLang={language} />;
+  } else if (appState === 'onboarding') {
+    content = <Onboarding onComplete={handleOnboardingComplete} currentLang={language} />;
+  } else {
+    content = (
+      <>
+        <main className="h-full relative">
+          {currentView === 'home' && (
+            <Dashboard
+              expenses={expenses}
+              user={user}
+              onEditExpense={handleEditExpense}
+              onOpenSettings={() => setCurrentView('settings')}
+              onOpenInsights={() => setCurrentView('insights')}
+              currentLang={language}
+              highlightedExpenseId={highlightedExpenseId}
+            />
+          )}
+
+          {currentView === 'capture' && (
+            <Capture
+              initialExpense={editingExpense || undefined}
+              onSaveComplete={handleSaveExpense}
+              onCancel={handleCancelCapture}
+              onShowPaywall={() => setIsPaywallOpen(true)}
+              currentLang={language}
+            />
+          )}
+
+          {currentView === 'insights' && (
+            <Insights onNavigateHome={() => setCurrentView('home')} currentLang={language} onShowPaywall={() => setIsPaywallOpen(true)} />
+          )}
+
+          {currentView === 'settings' && (
+            <Settings
+              user={user}
+              onUpdateUser={handleUpdateUser}
+              onLogout={handleLogout}
+              theme={theme}
+              onThemeChange={setTheme}
+              currentLang={language}
+              onLangChange={setLanguage}
+              onShowPaywall={() => setIsPaywallOpen(true)}
+            />
+          )}
+        </main>
+
+        <BottomNav />
+
+        {isPaywallOpen && <PaywallModal onClose={() => setIsPaywallOpen(false)} onStartTrial={handleStartTrial} currentLang={language} />}
+      </>
+    );
+  }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-bg font-sans text-text">
-      <main className="mx-auto max-w-lg h-full relative">
-        {currentView === 'home' && (
-          <Dashboard
-            expenses={expenses}
-            user={user}
-            onEditExpense={handleEditExpense}
-            onOpenSettings={() => setCurrentView('settings')}
-            onOpenInsights={() => setCurrentView('insights')}
-            currentLang={language}
-            highlightedExpenseId={highlightedExpenseId}
-          />
-        )}
-
-        {currentView === 'capture' && (
-          <Capture
-            initialExpense={editingExpense || undefined}
-            onSaveComplete={handleSaveExpense}
-            onCancel={handleCancelCapture}
-            onShowPaywall={() => setIsPaywallOpen(true)}
-            currentLang={language}
-          />
-        )}
-
-        {currentView === 'insights' && (
-          <Insights onNavigateHome={() => setCurrentView('home')} currentLang={language} onShowPaywall={() => setIsPaywallOpen(true)} />
-        )}
-
-        {currentView === 'settings' && (
-          <Settings
-            user={user}
-            onUpdateUser={handleUpdateUser}
-            onLogout={handleLogout}
-            theme={theme}
-            onThemeChange={setTheme}
-            currentLang={language}
-            onLangChange={setLanguage}
-            onShowPaywall={() => setIsPaywallOpen(true)}
-          />
-        )}
-      </main>
-
-      <BottomNav />
-
-      {isPaywallOpen && <PaywallModal onClose={() => setIsPaywallOpen(false)} onStartTrial={handleStartTrial} currentLang={language} />}
+    <div className="h-screen w-screen overflow-hidden bg-surface-2 flex items-center justify-center">
+      <div className="relative w-full h-full max-w-[430px] overflow-hidden bg-bg font-sans text-text">
+        {content}
+      </div>
     </div>
   );
 }

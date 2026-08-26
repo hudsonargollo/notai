@@ -29,7 +29,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ onClose, onStartTria
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true">
+    <div className="absolute inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <motion.div
         initial={{ y: '100%' }}
