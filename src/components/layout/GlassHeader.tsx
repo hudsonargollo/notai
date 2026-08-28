@@ -12,13 +12,15 @@
  * - Proper z-index layering
  */
 
+import type { ReactNode } from "react";
+
 import { cn } from "@/lib/utils";
 
 export interface GlassHeaderProps {
   /** Header title text */
   title: string;
   /** Optional action buttons or elements */
-  actions?: React.ReactNode;
+  actions?: ReactNode;
   /** Whether header should stick to top on scroll */
   sticky?: boolean;
   /** Additional CSS classes */

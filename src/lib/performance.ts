@@ -5,7 +5,8 @@
  * including memoization helpers, debouncing, and render optimization.
  */
 
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import type { RefCallback, DependencyList } from 'react';
 
 /**
  * Debounce hook
@@ -83,7 +84,7 @@ export function useThrottle<T extends (...args: any[]) => any>(
  */
 export function useIntersectionObserver(
   options: IntersectionObserverInit = {}
-): [React.RefCallback<Element>, boolean] {
+): [RefCallback<Element>, boolean] {
   const [isVisible, setIsVisible] = useState(false);
   const [node, setNode] = useState<Element | null>(null);
 
@@ -121,7 +122,7 @@ export function useIntersectionObserver(
  */
 export function useMemoizedCallback<T extends (...args: any[]) => any>(
   callback: T,
-  deps: React.DependencyList
+  deps: DependencyList
 ): T {
   return useCallback(callback, deps);
 }
@@ -137,7 +138,7 @@ export function useMemoizedCallback<T extends (...args: any[]) => any>(
  */
 export function useMemoizedValue<T>(
   factory: () => T,
-  deps: React.DependencyList
+  deps: DependencyList
 ): T {
   return useMemo(factory, deps);
 }
@@ -154,8 +155,8 @@ export function useMemoizedValue<T>(
  * });
  */
 export function useAnimationFrame(callback: (deltaTime: number) => void) {
-  const requestRef = useRef<number>();
-  const previousTimeRef = useRef<number>();
+  const requestRef = useRef<number | undefined>(undefined);
+  const previousTimeRef = useRef<number | undefined>(undefined);
 
   const animate = useCallback(
     (time: number) => {
@@ -190,7 +191,7 @@ export function useAnimationFrame(callback: (deltaTime: number) => void) {
  *   preloadImages();
  * });
  */
-export function useIdleCallback(callback: () => void, deps: React.DependencyList = []) {
+export function useIdleCallback(callback: () => void, deps: DependencyList = []) {
   useEffect(() => {
     if ('requestIdleCallback' in window) {
       const id = requestIdleCallback(callback);
@@ -267,6 +268,3 @@ export function usePerformanceMonitor(componentName: string) {
     startTime.current = performance.now();
   });
 }
-
-// Missing import
-import { useState } from 'react';

@@ -32,11 +32,11 @@ export const springTransition: Transition = {
  *   <Button>Click me</Button>
  * </motion.div>
  */
-export const scaleOnHover: Variants = {
+export const scaleOnHover = {
   rest: { scale: 1 },
   hover: { scale: 1.02, transition: springTransition },
   tap: { scale: 0.98, transition: springTransition },
-};
+} satisfies Variants;
 
 /**
  * Fade In Up Animation
@@ -54,19 +54,19 @@ export const scaleOnHover: Variants = {
  *   {content}
  * </motion.div>
  */
-export const fadeInUp: Variants = {
+export const fadeInUp = {
   initial: { opacity: 0, y: 20 },
-  animate: { 
-    opacity: 1, 
+  animate: {
+    opacity: 1,
     y: 0,
     transition: springTransition,
   },
-  exit: { 
-    opacity: 0, 
+  exit: {
+    opacity: 0,
     y: -20,
     transition: springTransition,
   },
-};
+} satisfies Variants;
 
 /**
  * Slide From Bottom Animation
@@ -84,17 +84,17 @@ export const fadeInUp: Variants = {
  *   {sheetContent}
  * </motion.div>
  */
-export const slideFromBottom: Variants = {
+export const slideFromBottom = {
   initial: { y: "100%" },
-  animate: { 
+  animate: {
     y: 0,
     transition: springTransition,
   },
-  exit: { 
+  exit: {
     y: "100%",
     transition: springTransition,
   },
-};
+} satisfies Variants;
 
 /**
  * Page Transition Variants
@@ -158,19 +158,19 @@ export const pageTransition = {
  *   {modalContent}
  * </motion.div>
  */
-export const modalAnimation: Variants = {
+export const modalAnimation = {
   initial: { opacity: 0, scale: 0.95 },
-  animate: { 
-    opacity: 1, 
+  animate: {
+    opacity: 1,
     scale: 1,
     transition: springTransition,
   },
-  exit: { 
-    opacity: 0, 
+  exit: {
+    opacity: 0,
     scale: 0.95,
     transition: springTransition,
   },
-};
+} satisfies Variants;
 
 /**
  * Stagger Children Animation
@@ -185,23 +185,23 @@ export const modalAnimation: Variants = {
  *   <motion.div variants={staggerItem}>Item 3</motion.div>
  * </motion.div>
  */
-export const staggerContainer: Variants = {
+export const staggerContainer = {
   initial: {},
   animate: {
     transition: {
       staggerChildren: 0.1,
     },
   },
-};
+} satisfies Variants;
 
-export const staggerItem: Variants = {
+export const staggerItem = {
   initial: { opacity: 0, y: 20 },
-  animate: { 
-    opacity: 1, 
+  animate: {
+    opacity: 1,
     y: 0,
     transition: springTransition,
   },
-};
+} satisfies Variants;
 
 /**
  * Fade Animation
@@ -218,14 +218,14 @@ export const staggerItem: Variants = {
  *   {content}
  * </motion.div>
  */
-export const fade: Variants = {
+export const fade = {
   initial: { opacity: 0 },
-  animate: { 
+  animate: {
     opacity: 1,
     transition: { duration: 0.2 },
   },
-  exit: { 
+  exit: {
     opacity: 0,
     transition: { duration: 0.2 },
   },
-};
+} satisfies Variants;

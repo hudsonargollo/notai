@@ -11,12 +11,13 @@
  * - Prevents animation stacking with AnimatePresence
  */
 
+import type { ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { springTransition } from "@/lib/animations";
 
 export interface PageTransitionProps {
   /** Content to animate */
-  children: React.ReactNode;
+  children: ReactNode;
   /** Navigation direction - affects slide direction */
   direction?: "forward" | "backward";
   /** Unique key for AnimatePresence (e.g., route path) */

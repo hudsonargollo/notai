@@ -12,7 +12,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
 
   try {
-    const body = await context.request.json();
+    const body = await context.request.json<{ endpoint: string; payload: unknown }>();
     const { endpoint, payload } = body;
 
     // Forward request to Gemini API
